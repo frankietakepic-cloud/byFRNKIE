@@ -1,0 +1,65 @@
+{
+  "name": "L'Officina — Creative Operating System",
+  "short_name": "L'Officina",
+  "description": "A quiet, mobile-first creative operating system for photography, editorial writing, and workshop engineering.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#121212",
+  "theme_color": "#121212",
+  "categories": ["photography", "productivity", "utilities"],
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "New Journal",
+      "short_name": "Journal",
+      "description": "Start a new writing piece",
+      "url": "/?action=new-journal",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Import Photos",
+      "short_name": "Import",
+      "description": "Import camera or gallery photos",
+      "url": "/?action=import-photos",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Daily Observation",
+      "short_name": "Daily",
+      "description": "Log daily thought or photo",
+      "url": "/?action=daily",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Workshop Project",
+      "short_name": "Workshop",
+      "description": "Create a workshop project",
+      "url": "/?action=workshop",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ],
+  "share_target": {
+    "action": "/?share=true",
+    "method": "GET",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  }
+}
