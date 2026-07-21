@@ -1,4 +1,5 @@
 import React, { useState, useRef } from "react";
+import { API_URL } from "../lib/api";
 import { 
   UploadCloud, Check, Camera, MapPin, Calendar, 
   BookOpen, Loader2, Edit, Trash2, Plus, ArrowUpRight, 
@@ -137,7 +138,7 @@ export default function UploadForm({
       });
 
       try {
-        const response = await fetch("/api/photos", {
+        const response = await fetch(`${API_URL}/api/photos`, {
           method: "POST",
           headers: getAuthHeaders(),
           body: JSON.stringify({
@@ -207,7 +208,7 @@ export default function UploadForm({
     setIsInspectorSaving(true);
 
     try {
-      const response = await fetch(`/api/photos/${activePhotoId}`, {
+      const response = await fetch(`${API_URL}/api/photos/${activePhotoId}`, {
         method: "PUT",
         headers: getAuthHeaders(),
         body: JSON.stringify({
@@ -264,7 +265,7 @@ export default function UploadForm({
   // BULK OPERATION: SAVE COMPLETE ARRAY TO SERVER (REORDERS, STATUSES, TAGS)
   const savePhotosArrayToServer = async (newPhotosArray: Photo[]) => {
     try {
-      const response = await fetch("/api/photos", {
+      const response = await fetch(`${API_URL}/api/photos`, {
         method: "PUT",
         headers: getAuthHeaders(),
         body: JSON.stringify({ photos: newPhotosArray })
@@ -424,7 +425,7 @@ export default function UploadForm({
 
     setIsJournalPublishing(true);
     try {
-      const response = await fetch("/api/journals", {
+      const response = await fetch(`${API_URL}/api/journals`, {
         method: "POST",
         headers: getAuthHeaders(),
         body: JSON.stringify({
@@ -476,7 +477,7 @@ export default function UploadForm({
     if (!editingJournal) return;
 
     try {
-      const response = await fetch(`/api/journals/${editingJournal.id}`, {
+      const response = await fetch(`${API_URL}/api/journals/${editingJournal.id}`, {
         method: "PUT",
         headers: getAuthHeaders(),
         body: JSON.stringify({
@@ -509,7 +510,7 @@ export default function UploadForm({
     if (!confirm("Are you sure you want to delete this journal entry from the Archive?")) return;
 
     try {
-      const response = await fetch(`/api/journals/${id}`, {
+      const response = await fetch(`${API_URL}/api/journals/${id}`, {
         method: "DELETE",
         headers: getAuthHeaders()
       });
@@ -538,7 +539,7 @@ export default function UploadForm({
 
     setIsProjectPublishing(true);
     try {
-      const response = await fetch("/api/projects", {
+      const response = await fetch(`${API_URL}/api/projects`, {
         method: "POST",
         headers: getAuthHeaders(),
         body: JSON.stringify({
@@ -599,7 +600,7 @@ export default function UploadForm({
     if (!editingProject) return;
 
     try {
-      const response = await fetch(`/api/projects/${editingProject.id}`, {
+      const response = await fetch(`${API_URL}/api/projects/${editingProject.id}`, {
         method: "PUT",
         headers: getAuthHeaders(),
         body: JSON.stringify({
@@ -640,7 +641,7 @@ export default function UploadForm({
     if (!confirm("Are you sure you want to delete this project?")) return;
 
     try {
-      const response = await fetch(`/api/projects/${id}`, {
+      const response = await fetch(`${API_URL}/api/projects/${id}`, {
         method: "DELETE",
         headers: getAuthHeaders()
       });

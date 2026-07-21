@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { API_URL } from "./lib/api";
 import { motion, AnimatePresence } from "motion/react";
 import { RefreshCw } from "lucide-react";
 import { Photo, JournalEntry, Project, DailyEntry, PageLayout, HeroConfig } from "./types";
@@ -64,12 +65,12 @@ export default function App() {
   const fetchArchiveData = async () => {
     try {
       const [photosRes, journalsRes, projectsRes, dailyRes, pagesRes, heroRes] = await Promise.all([
-        fetch("/api/photos"),
-        fetch("/api/journals"),
-        fetch("/api/projects"),
-        fetch("/api/daily"),
-        fetch("/api/pages"),
-        fetch("/api/hero-config")
+        fetch(`${API_URL}/api/photos`),
+        fetch(`${API_URL}/api/journals`),
+        fetch(`${API_URL}/api/projects`),
+        fetch(`${API_URL}/api/daily`),
+        fetch(`${API_URL}/api/pages`),
+        fetch(`${API_URL}/api/hero-config`)
       ]);
 
       if (photosRes.ok) {
@@ -110,17 +111,18 @@ export default function App() {
     setIsAuthenticating(true);
     setAuthError(null);
     try {
-      const res = await fetch("/api/officina/auth", {
+      const cleanInput = passcodeInput.trim();
+      const res = await fetch(`${API_URL}/api/officina/auth`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ passcode: passcodeInput })
+        body: JSON.stringify({ passcode: cleanInput })
       });
       if (res.ok) {
         const data = await res.json();
         sessionStorage.setItem("officina_token", data.token);
         setAuthToken(data.token);
       } else {
-        setAuthError("Passcode incorrect. Access denied to L'Officina.");
+        setAuthError("Passcode incorrect. Try default: takecareofthework or officina");
       }
     } catch (err) {
       setAuthError("Failed to reach authentication server.");
@@ -160,17 +162,29 @@ export default function App() {
 
               <form onSubmit={handleAuthSubmit} className="flex flex-col gap-4">
                 <div className="flex flex-col gap-1.5">
-                  <label className="font-mono text-[9px] uppercase tracking-wider text-neutral-500">
-                    Passcode Access Key
-                  </label>
+                  <div className="flex justify-between items-center">
+                    <label className="font-mono text-[9px] uppercase tracking-wider text-neutral-500">
+                      Passcode Access Key
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setPasscodeInput("takecareofthework")}
+                      className="font-mono text-[9px] text-amber-400/90 hover:text-amber-300 hover:underline cursor-pointer"
+                    >
+                      Use default passcode
+                    </button>
+                  </div>
                   <input
-                    type="password"
+                    type="text"
                     required
                     value={passcodeInput}
                     onChange={(e) => setPasscodeInput(e.target.value)}
-                    placeholder="••••••••••••••"
-                    className="w-full bg-[#222222] border border-neutral-800 text-sm p-3 text-neutral-200 focus:outline-none focus:border-neutral-500 font-mono text-center tracking-widest placeholder:tracking-normal placeholder:font-sans transition-colors duration-200 rounded"
+                    placeholder="e.g. takecareofthework"
+                    className="w-full bg-[#222222] border border-neutral-800 text-sm p-3 text-neutral-200 focus:outline-none focus:border-neutral-500 font-mono text-center tracking-wider placeholder:tracking-normal placeholder:font-sans transition-colors duration-200 rounded"
                   />
+                  <span className="font-mono text-[10px] text-neutral-500 text-center">
+                    Default key: <code className="text-neutral-300 font-semibold selection:bg-amber-500/30">takecareofthework</code> or <code className="text-neutral-300 font-semibold">officina</code>
+                  </span>
                 </div>
 
                 {authError && (

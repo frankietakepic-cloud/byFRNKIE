@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
+import { API_URL } from "../lib/api";
 import { Photo, JournalEntry, Project, DailyEntry, PageLayout, HeroConfig } from "../types";
 import { initialDailyEntries } from "../data";
 import { initialPages, initialHeroConfig } from "../dataPages";
@@ -56,14 +57,14 @@ export default function OfficinaWorkspace({
   const [heroConfig, setHeroConfig] = useState<HeroConfig>(initialHeroConfig);
 
   useEffect(() => {
-    fetch("/api/pages")
+    fetch(`${API_URL}/api/pages`)
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data) && data.length > 0) setPages(data);
       })
       .catch((err) => console.warn("Pages API fallback.", err));
 
-    fetch("/api/hero-config")
+    fetch(`${API_URL}/api/hero-config`)
       .then((res) => res.json())
       .then((data) => {
         if (data && data.sourceType) setHeroConfig(data);
@@ -189,7 +190,7 @@ export default function OfficinaWorkspace({
     setPhotos((prev) => prev.map((p) => (p.id === updatedPhoto.id ? updatedPhoto : p)));
 
     try {
-      await fetch(`/api/photos/${updatedPhoto.id}`, {
+      await fetch(`${API_URL}/api/photos/${updatedPhoto.id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -220,7 +221,7 @@ export default function OfficinaWorkspace({
     });
 
     try {
-      await fetch("/api/photos", {
+      await fetch(`${API_URL}/api/photos`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -239,7 +240,7 @@ export default function OfficinaWorkspace({
     setSelectedPhotoIds((prev) => prev.filter((id) => id !== photoId));
 
     try {
-      await fetch(`/api/photos/${photoId}`, {
+      await fetch(`${API_URL}/api/photos/${photoId}`, {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${authToken || "takecareofthework"}`
@@ -269,7 +270,7 @@ export default function OfficinaWorkspace({
 
     try {
       const exists = journals.some((j) => j.id === journal.id);
-      const url = exists ? `/api/journals/${journal.id}` : "/api/journals";
+      const url = exists ? `${API_URL}/api/journals/${journal.id}` : `${API_URL}/api/journals`;
       const method = exists ? "PUT" : "POST";
 
       await fetch(url, {
@@ -288,7 +289,7 @@ export default function OfficinaWorkspace({
   const handleDeleteJournal = async (id: string) => {
     setJournals((prev) => prev.filter((j) => j.id !== id));
     try {
-      await fetch(`/api/journals/${id}`, {
+      await fetch(`${API_URL}/api/journals/${id}`, {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${authToken || "takecareofthework"}`
@@ -313,7 +314,7 @@ export default function OfficinaWorkspace({
 
     try {
       const exists = projects.some((p) => p.id === project.id);
-      const url = exists ? `/api/projects/${project.id}` : "/api/projects";
+      const url = exists ? `${API_URL}/api/projects/${project.id}` : `${API_URL}/api/projects`;
       const method = exists ? "PUT" : "POST";
 
       await fetch(url, {
@@ -332,7 +333,7 @@ export default function OfficinaWorkspace({
   const handleDeleteProject = async (id: string) => {
     setProjects((prev) => prev.filter((p) => p.id !== id));
     try {
-      await fetch(`/api/projects/${id}`, {
+      await fetch(`${API_URL}/api/projects/${id}`, {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${authToken || "takecareofthework"}`
@@ -373,7 +374,7 @@ export default function OfficinaWorkspace({
     });
 
     try {
-      await fetch(`/api/pages/${page.id}`, {
+      await fetch(`${API_URL}/api/pages/${page.id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -401,7 +402,7 @@ export default function OfficinaWorkspace({
     setPages((prev) => [...prev, newPage]);
 
     try {
-      const res = await fetch(`/api/pages`, {
+      const res = await fetch(`${API_URL}/api/pages`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -423,7 +424,7 @@ export default function OfficinaWorkspace({
   const handleDeletePage = async (id: string) => {
     setPages((prev) => prev.filter((p) => p.id !== id));
     try {
-      await fetch(`/api/pages/${id}`, {
+      await fetch(`${API_URL}/api/pages/${id}`, {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${authToken || "takecareofthework"}`
@@ -437,7 +438,7 @@ export default function OfficinaWorkspace({
   const handleUpdateHeroConfig = async (config: HeroConfig) => {
     setHeroConfig(config);
     try {
-      await fetch(`/api/hero-config`, {
+      await fetch(`${API_URL}/api/hero-config`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -453,7 +454,7 @@ export default function OfficinaWorkspace({
   // Trigger AI Action
   const handleTriggerAiAction = async (action: string, payload?: any) => {
     try {
-      const res = await fetch("/api/officina/ai-suggest", {
+      const res = await fetch(`${API_URL}/api/officina/ai-suggest`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
