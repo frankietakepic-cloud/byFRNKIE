@@ -81,6 +81,10 @@ if (!fs.existsSync(HERO_CONFIG_PATH)) {
 }
 
 async function startServer() {
+  if (!process.env.OFFICINA_PASSCODE || !process.env.OFFICINA_PASSCODE.trim()) {
+    throw new Error("OFFICINA_PASSCODE environment variable is missing or empty.");
+  }
+
   const app = express();
 
   app.use(cors({
@@ -100,20 +104,10 @@ async function startServer() {
   // Authentication helper for L'Officina internal operations
   const requireAuth = (req: express.Request, res: express.Response, next: express.NextFunction) => {
     const authHeader = req.headers.authorization;
-    const token = (authHeader || "").replace(/^Bearer\s+/i, "").trim().toLowerCase();
-    const envPasscode = (process.env.OFFICINA_PASSCODE || "takecareofthework").trim().toLowerCase();
-    
-    const validPasscodes = new Set([
-      envPasscode,
-      "takecareofthework",
-      "officina",
-      "frankie",
-      "frnk",
-      "admin",
-      "123456"
-    ]);
+    const token = (authHeader || "").replace(/^Bearer\s+/i, "").trim();
+    const envPasscode = (process.env.OFFICINA_PASSCODE || "").trim();
 
-    if (token && validPasscodes.has(token)) {
+    if (envPasscode && token === envPasscode) {
       next();
     } else {
       res.status(401).json({ error: "Unauthorized access to L'Officina" });
@@ -122,24 +116,13 @@ async function startServer() {
 
   // Auth endpoint
   app.post("/api/officina/auth", (req, res) => {
-    const rawPasscode = (req.body?.passcode || "").toString().trim().toLowerCase();
-    const envPasscode = (process.env.OFFICINA_PASSCODE || "takecareofthework").trim().toLowerCase();
-    
-    const validPasscodes = new Set([
-      envPasscode,
-      "takecareofthework",
-      "officina",
-      "frankie",
-      "frnk",
-      "admin",
-      "123456"
-    ]);
+    const rawPasscode = (req.body?.passcode || "").toString().trim();
+    const envPasscode = (process.env.OFFICINA_PASSCODE || "").trim();
 
-    if (rawPasscode && validPasscodes.has(rawPasscode)) {
-      const token = process.env.OFFICINA_PASSCODE || "takecareofthework";
-      res.json({ success: true, token });
+    if (envPasscode && rawPasscode === envPasscode) {
+      res.json({ success: true, token: envPasscode });
     } else {
-      res.status(401).json({ error: "Invalid passcode" });
+      res.status(401).json({ error: "Invalid credentials" });
     }
   });
 

@@ -59,7 +59,7 @@ export default function OfficinaSettings({
             <span>Passcode Access Key</span>
           </div>
           <p className="text-xs text-neutral-400 leading-relaxed">
-            The workspace is protected by a single passkey. You can set the <code className="font-mono bg-neutral-900 px-1.5 py-0.5 border border-neutral-800 text-neutral-300">OFFICINA_PASSCODE</code> environment variable in Secrets, or use the default: <code className="font-mono bg-neutral-900 px-1.5 py-0.5 border border-neutral-800 text-amber-300">takecareofthework</code>.
+            The workspace is protected by a single passkey. Set the <code className="font-mono bg-neutral-900 px-1.5 py-0.5 border border-neutral-800 text-neutral-300">OFFICINA_PASSCODE</code> environment variable in Secrets to configure access.
           </p>
         </div>
 

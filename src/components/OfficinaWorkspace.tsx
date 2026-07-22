@@ -194,7 +194,7 @@ export default function OfficinaWorkspace({
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${authToken || "takecareofthework"}`
+          Authorization: `Bearer ${authToken || ""}`
         },
         body: JSON.stringify(updatedPhoto)
       });
@@ -225,7 +225,7 @@ export default function OfficinaWorkspace({
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${authToken || "takecareofthework"}`
+          Authorization: `Bearer ${authToken || ""}`
         },
         body: JSON.stringify({ photos: updatedArray })
       });
@@ -243,7 +243,7 @@ export default function OfficinaWorkspace({
       await fetch(`${API_URL}/api/photos/${photoId}`, {
         method: "DELETE",
         headers: {
-          Authorization: `Bearer ${authToken || "takecareofthework"}`
+          Authorization: `Bearer ${authToken || ""}`
         }
       });
     } catch (err) {
@@ -277,7 +277,7 @@ export default function OfficinaWorkspace({
         method,
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${authToken || "takecareofthework"}`
+          Authorization: `Bearer ${authToken || ""}`
         },
         body: JSON.stringify(journal)
       });
@@ -292,7 +292,7 @@ export default function OfficinaWorkspace({
       await fetch(`${API_URL}/api/journals/${id}`, {
         method: "DELETE",
         headers: {
-          Authorization: `Bearer ${authToken || "takecareofthework"}`
+          Authorization: `Bearer ${authToken || ""}`
         }
       });
     } catch (err) {
@@ -321,7 +321,7 @@ export default function OfficinaWorkspace({
         method,
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${authToken || "takecareofthework"}`
+          Authorization: `Bearer ${authToken || ""}`
         },
         body: JSON.stringify(project)
       });
@@ -336,7 +336,7 @@ export default function OfficinaWorkspace({
       await fetch(`${API_URL}/api/projects/${id}`, {
         method: "DELETE",
         headers: {
-          Authorization: `Bearer ${authToken || "takecareofthework"}`
+          Authorization: `Bearer ${authToken || ""}`
         }
       });
     } catch (err) {
@@ -378,7 +378,7 @@ export default function OfficinaWorkspace({
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${authToken || "takecareofthework"}`
+          Authorization: `Bearer ${authToken || ""}`
         },
         body: JSON.stringify(page)
       });
@@ -406,7 +406,7 @@ export default function OfficinaWorkspace({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${authToken || "takecareofthework"}`
+          Authorization: `Bearer ${authToken || ""}`
         },
         body: JSON.stringify({ title, slug })
       });
@@ -427,7 +427,7 @@ export default function OfficinaWorkspace({
       await fetch(`${API_URL}/api/pages/${id}`, {
         method: "DELETE",
         headers: {
-          Authorization: `Bearer ${authToken || "takecareofthework"}`
+          Authorization: `Bearer ${authToken || ""}`
         }
       });
     } catch (err) {
@@ -442,7 +442,7 @@ export default function OfficinaWorkspace({
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${authToken || "takecareofthework"}`
+          Authorization: `Bearer ${authToken || ""}`
         },
         body: JSON.stringify(config)
       });
@@ -458,7 +458,7 @@ export default function OfficinaWorkspace({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${authToken || "takecareofthework"}`
+          Authorization: `Bearer ${authToken || ""}`
         },
         body: JSON.stringify({ action, photo: payload?.photo || activePhoto, prompt: payload?.prompt })
       });

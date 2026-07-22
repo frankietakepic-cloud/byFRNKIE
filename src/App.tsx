@@ -122,7 +122,7 @@ export default function App() {
         sessionStorage.setItem("officina_token", data.token);
         setAuthToken(data.token);
       } else {
-        setAuthError("Passcode incorrect. Try default: takecareofthework or officina");
+        setAuthError("Invalid credentials.");
       }
     } catch (err) {
       setAuthError("Failed to reach authentication server.");
@@ -166,24 +166,17 @@ export default function App() {
                     <label className="font-mono text-[9px] uppercase tracking-wider text-neutral-500">
                       Passcode Access Key
                     </label>
-                    <button
-                      type="button"
-                      onClick={() => setPasscodeInput("takecareofthework")}
-                      className="font-mono text-[9px] text-amber-400/90 hover:text-amber-300 hover:underline cursor-pointer"
-                    >
-                      Use default passcode
-                    </button>
                   </div>
                   <input
-                    type="text"
+                    type="password"
                     required
                     value={passcodeInput}
                     onChange={(e) => setPasscodeInput(e.target.value)}
-                    placeholder="e.g. takecareofthework"
+                    placeholder="Enter passcode"
                     className="w-full bg-[#222222] border border-neutral-800 text-sm p-3 text-neutral-200 focus:outline-none focus:border-neutral-500 font-mono text-center tracking-wider placeholder:tracking-normal placeholder:font-sans transition-colors duration-200 rounded"
                   />
                   <span className="font-mono text-[10px] text-neutral-500 text-center">
-                    Default key: <code className="text-neutral-300 font-semibold selection:bg-amber-500/30">takecareofthework</code> or <code className="text-neutral-300 font-semibold">officina</code>
+                    Authorized curators only.
                   </span>
                 </div>
 
