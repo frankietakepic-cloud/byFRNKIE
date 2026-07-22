@@ -138,26 +138,106 @@ async function processImageDerivatives(sourceFilePath: string, baseFilename: str
   const webFilename = `${baseFilename}-web.webp`;
   const thumbFilename = `${baseFilename}-thumb.webp`;
 
-  const webPath = path.join(webDir, webFilename);
-  const thumbPath = path.join(thumbDir, thumbFilename);
+  const webPath = path.resolve(path.join(webDir, webFilename));
+  const thumbPath = path.resolve(path.join(thumbDir, thumbFilename));
+
+  console.log(`[Sharp Process] Derivatives generation starting:`);
+  console.log(`  Source absolute path: ${path.resolve(sourceFilePath)}`);
+  console.log(`  Target Web Preview path: ${webPath}`);
+  console.log(`  Target Thumbnail path: ${thumbPath}`);
+
+  let hasWeb = false;
+  let hasThumb = false;
+  let webSize = 0;
+  let thumbSize = 0;
 
   // High performance WebP Web Preview (max 1920px)
-  await sharp(sourceFilePath)
-    .rotate()
-    .resize({ width: 1920, height: 1920, fit: "inside", withoutEnlargement: true })
-    .webp({ quality: 85 })
-    .toFile(webPath);
+  try {
+    await sharp(sourceFilePath)
+      .rotate()
+      .resize({ width: 1920, height: 1920, fit: "inside", withoutEnlargement: true })
+      .webp({ quality: 85 })
+      .toFile(webPath);
+    
+    hasWeb = fs.existsSync(webPath);
+    if (hasWeb) {
+      webSize = fs.statSync(webPath).size;
+      console.log(`[Sharp Process] Web Preview generated successfully: ${webPath} (${webSize} bytes)`);
+    } else {
+      console.error(`[Sharp Process] Web Preview output file MISSING on disk after toFile(): ${webPath}`);
+    }
+  } catch (err: any) {
+    console.error(`[Sharp FULL ERROR STACK] Failed to generate web preview for ${sourceFilePath}:`);
+    console.error(err.stack || err);
+  }
 
   // Fast WebP Thumbnail (500px cover)
-  await sharp(sourceFilePath)
-    .rotate()
-    .resize({ width: 500, height: 500, fit: "cover" })
-    .webp({ quality: 80 })
-    .toFile(thumbPath);
+  try {
+    await sharp(sourceFilePath)
+      .rotate()
+      .resize({ width: 500, height: 500, fit: "cover" })
+      .webp({ quality: 80 })
+      .toFile(thumbPath);
+
+    hasThumb = fs.existsSync(thumbPath);
+    if (hasThumb) {
+      thumbSize = fs.statSync(thumbPath).size;
+      console.log(`[Sharp Process] Thumbnail generated successfully: ${thumbPath} (${thumbSize} bytes)`);
+    } else {
+      console.error(`[Sharp Process] Thumbnail output file MISSING on disk after toFile(): ${thumbPath}`);
+    }
+  } catch (err: any) {
+    console.error(`[Sharp FULL ERROR STACK] Failed to generate thumbnail for ${sourceFilePath}:`);
+    console.error(err.stack || err);
+  }
+
+  // Fallback hierarchy: thumbnail -> webPreview -> original
+  const webPreviewUrl = hasWeb ? `/uploads/web/${year}/${month}/${webFilename}` : null;
+  const thumbnailUrl = hasThumb ? `/uploads/thumbs/${year}/${month}/${thumbFilename}` : webPreviewUrl;
 
   return {
-    webPreviewUrl: `/uploads/web/${year}/${month}/${webFilename}`,
-    thumbnailUrl: `/uploads/thumbs/${year}/${month}/${thumbFilename}`
+    webPreviewUrl,
+    thumbnailUrl,
+    hasWeb,
+    hasThumb,
+    webPath,
+    thumbPath,
+    webSize,
+    thumbSize
+  };
+}
+
+function resolvePhotoUrls(photo: any) {
+  if (!photo) return photo;
+
+  const checkFileOnDisk = (urlStr: string | null | undefined): boolean => {
+    if (!urlStr) return false;
+    if (urlStr.startsWith("http://") || urlStr.startsWith("https://") || urlStr.startsWith("data:")) return true;
+    if (!urlStr.startsWith("/uploads/")) return true;
+
+    const relPath = urlStr.replace(/^\/uploads\//, "");
+    const absPath = path.join(UPLOADS_DIR, relPath);
+    return fs.existsSync(absPath) && fs.statSync(absPath).isFile();
+  };
+
+  const origUrl = photo.originalUrl || photo.url;
+  const webUrl = photo.webPreviewUrl;
+  const thumbUrl = photo.thumbnailUrl;
+
+  const hasOrig = checkFileOnDisk(origUrl);
+  const hasWeb = checkFileOnDisk(webUrl);
+  const hasThumb = checkFileOnDisk(thumbUrl);
+
+  const finalOrig = hasOrig ? origUrl : photo.url;
+  const finalWeb = hasWeb ? webUrl : (hasOrig ? finalOrig : photo.url);
+  const finalThumb = hasThumb ? thumbUrl : (hasWeb ? finalWeb : (hasOrig ? finalOrig : photo.url));
+
+  return {
+    ...photo,
+    originalUrl: finalOrig,
+    webPreviewUrl: finalWeb,
+    thumbnailUrl: finalThumb,
+    url: finalWeb || photo.url
   };
 }
 
@@ -329,8 +409,9 @@ async function startServer() {
 
   // API Endpoints
   app.get("/api/photos", (req, res) => {
-    const photos = readDataFile(PHOTOS_PATH, []);
-    res.json(photos);
+    const photos = readDataFile<any[]>(PHOTOS_PATH, []);
+    const resolvedPhotos = photos.map(resolvePhotoUrls);
+    res.json(resolvedPhotos);
   });
 
   app.post("/api/photos", uploadMiddleware.single("file"), requireAuth, async (req, res) => {
@@ -376,7 +457,7 @@ async function startServer() {
             res.status(409).json({
               error: "Duplicate photograph detected",
               duplicate: true,
-              existingPhoto
+              existingPhoto: resolvePhotoUrls(existingPhoto)
             });
             return;
           } else if (duplicateAction === "skip") {
@@ -385,7 +466,7 @@ async function startServer() {
               message: "Duplicate photograph skipped",
               duplicate: true,
               action: "skipped",
-              photo: existingPhoto
+              photo: resolvePhotoUrls(existingPhoto)
             });
             return;
           }
@@ -412,19 +493,67 @@ async function startServer() {
 
         // Step D: Extract EXIF & Generate WebP derivatives (Web Preview & Thumbnail)
         exif = await extractExifFromFilePath(finalOriginalPath);
+        
+        let derivResult: any = {};
         try {
-          const derivatives = await processImageDerivatives(finalOriginalPath, baseFilename);
-          webPreviewUrl = derivatives.webPreviewUrl;
-          thumbnailUrl = derivatives.thumbnailUrl;
-        } catch (derivErr) {
-          console.warn("Failed to generate image derivatives, falling back to original:", derivErr);
+          derivResult = await processImageDerivatives(finalOriginalPath, baseFilename);
+          webPreviewUrl = derivResult.webPreviewUrl || originalUrl;
+          thumbnailUrl = derivResult.thumbnailUrl || webPreviewUrl || originalUrl;
+        } catch (derivErr: any) {
+          console.error("[Sharp FULL ERROR STACK] Derivative generation failed, falling back to original:");
+          console.error(derivErr.stack || derivErr);
           webPreviewUrl = originalUrl;
           thumbnailUrl = originalUrl;
         }
 
+        const origAbsPath = path.resolve(finalOriginalPath);
+        const origExists = fs.existsSync(origAbsPath);
+        const origSize = origExists ? fs.statSync(origAbsPath).size : 0;
+
+        const webAbsPath = derivResult.webPath || path.resolve(path.join(UPLOADS_DIR, webPreviewUrl.replace(/^\/uploads\//, "")));
+        const webExists = fs.existsSync(webAbsPath);
+        const webSize = webExists ? fs.statSync(webAbsPath).size : (derivResult.webSize || 0);
+
+        const thumbAbsPath = derivResult.thumbPath || path.resolve(path.join(UPLOADS_DIR, thumbnailUrl.replace(/^\/uploads\//, "")));
+        const thumbExists = fs.existsSync(thumbAbsPath);
+        const thumbSize = thumbExists ? fs.statSync(thumbAbsPath).size : (derivResult.thumbSize || 0);
+
+        console.log(`\n==================================================`);
+        console.log(`[Upload Pipeline Audit] REALTIME RUNTIME LOGS`);
+        console.log(`==================================================`);
+        console.log(`1. Original uploaded file:`);
+        console.log(`   Absolute filesystem path: ${origAbsPath}`);
+        console.log(`   Exists: ${origExists}`);
+        console.log(`   File size: ${origSize} bytes`);
+        console.log(``);
+        console.log(`2. Generated Web Preview:`);
+        console.log(`   Absolute filesystem path: ${webAbsPath}`);
+        console.log(`   Exists: ${webExists}`);
+        console.log(`   File size: ${webSize} bytes`);
+        console.log(``);
+        console.log(`3. Generated Thumbnail:`);
+        console.log(`   Absolute filesystem path: ${thumbAbsPath}`);
+        console.log(`   Exists: ${thumbExists}`);
+        console.log(`   File size: ${thumbSize} bytes`);
+        console.log(``);
+        console.log(`4. URLs saved into the database:`);
+        console.log(`   originalUrl: ${originalUrl}`);
+        console.log(`   webPreviewUrl: ${webPreviewUrl}`);
+        console.log(`   thumbnailUrl: ${thumbnailUrl}`);
+        console.log(``);
+        console.log(`5. Filesystem Pre-Response Verification (fs.existsSync):`);
+        console.log(`   Original (${origAbsPath}): ${origExists ? "FOUND" : "MISSING"}`);
+        console.log(`   Web Preview (${webAbsPath}): ${webExists ? "FOUND" : "MISSING"}`);
+        console.log(`   Thumbnail (${thumbAbsPath}): ${thumbExists ? "FOUND" : "MISSING"}`);
+        console.log(``);
+        console.log(`6. Express Static Configuration:`);
+        console.log(`   UPLOADS_DIR: ${path.resolve(UPLOADS_DIR)}`);
+        console.log(`   Express Static Route: /uploads -> ${path.resolve(UPLOADS_DIR)}`);
+        console.log(`==================================================\n`);
+
         if (duplicateAction === "replace" && existingIndex !== -1) {
           const existingPhoto = photos[existingIndex];
-          const updatedPhoto = {
+          const updatedPhoto = resolvePhotoUrls({
             ...existingPhoto,
             ...req.body,
             originalUrl,
@@ -442,7 +571,7 @@ async function startServer() {
             orientation: req.body?.orientation || exif.orientation || existingPhoto.orientation || "Landscape",
             dimensions: req.body?.dimensions || exif.dimensions || existingPhoto.dimensions || "",
             updatedAt: new Date().toISOString()
-          };
+          });
 
           photos[existingIndex] = updatedPhoto;
           writeDataFile(PHOTOS_PATH, photos);
@@ -455,7 +584,7 @@ async function startServer() {
       const rawTitle = req.body?.title || "";
       const slugTitle = rawTitle.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
-      const newPhoto = {
+      const newPhoto = resolvePhotoUrls({
         id: `photo-${timestamp}`,
         originalUrl: originalUrl || webPreviewUrl,
         webPreviewUrl: webPreviewUrl || originalUrl,
@@ -489,7 +618,7 @@ async function startServer() {
         colorLabel: req.body?.colorLabel || "none",
         slug: slugTitle ? `photo-${slugTitle}` : `photo-${timestamp}`,
         publishedDate: req.body?.status === "published" ? new Date().toISOString() : undefined
-      };
+      });
 
       photos.unshift(newPhoto);
       writeDataFile(PHOTOS_PATH, photos);
@@ -553,6 +682,7 @@ async function startServer() {
 
       delete photos[index].imageBase64;
 
+      photos[index] = resolvePhotoUrls(photos[index]);
       writeDataFile(PHOTOS_PATH, photos);
       res.json(photos[index]);
     } catch (error) {
@@ -860,6 +990,34 @@ async function startServer() {
     res.json(updatedConfig);
   });
 
+  // Static Upload Request Middleware (Items 6, 7, and 9)
+  app.use("/uploads", (req, res, next) => {
+    const reqUrl = req.originalUrl;
+    const relPath = req.path.replace(/^\//, "");
+    const resolvedPath = path.resolve(path.join(UPLOADS_DIR, relPath));
+    const exists = fs.existsSync(resolvedPath);
+
+    console.log(`\n[Static Request Audit] Incoming /uploads request:`);
+    console.log(`  Requested URL: ${reqUrl}`);
+    console.log(`  Resolved filesystem path: ${resolvedPath}`);
+    console.log(`  Exists: ${exists}`);
+
+    if (exists) {
+      try {
+        const stats = fs.statSync(resolvedPath);
+        console.log(`  File size: ${stats.size} bytes`);
+      } catch (err) {
+        console.error(`  Error checking file stats for ${resolvedPath}:`, err);
+      }
+    } else {
+      console.warn(`  404 MISSING`);
+      console.warn(`  Resolved path: ${resolvedPath}`);
+      console.warn(`  Reason: File does not exist on disk at ${resolvedPath}. Express static will return 404.`);
+    }
+
+    next();
+  });
+
   // Serve static uploads
   app.use("/uploads", express.static(UPLOADS_DIR));
 
@@ -896,6 +1054,8 @@ async function startServer() {
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`[byFRNK Server] Running on http://0.0.0.0:${PORT} [ENV: ${process.env.NODE_ENV || "development"}]`);
+    console.log(`[byFRNK Server] UPLOADS_DIR: ${path.resolve(UPLOADS_DIR)}`);
+    console.log(`[byFRNK Server] Express Static: /uploads -> ${path.resolve(UPLOADS_DIR)}`);
   });
 }
 

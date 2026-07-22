@@ -203,9 +203,17 @@ export default function OfficinaInspector({
       <div className="p-4 border-b border-neutral-800/60 bg-[#111111]">
         <div className="relative aspect-4/3 bg-neutral-950 border border-neutral-800/80 rounded-xs overflow-hidden group">
           <img
-            src={photo.webPreviewUrl || photo.url}
+            src={photo.webPreviewUrl || photo.thumbnailUrl || photo.originalUrl || photo.url}
             alt={photo.title || "Selected photo"}
             className="w-full h-full object-contain"
+            onError={(e) => {
+              const target = e.currentTarget;
+              if (photo.originalUrl && target.src !== photo.originalUrl) {
+                target.src = photo.originalUrl;
+              } else if (photo.url && target.src !== photo.url) {
+                target.src = photo.url;
+              }
+            }}
           />
         </div>
 

@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { motion } from "motion/react";
 import { MapPin, Calendar, Camera } from "lucide-react";
 import { Photo } from "../types";
@@ -9,6 +10,21 @@ interface PhotoCardProps {
 }
 
 export default function PhotoCard({ photo, onClick }: PhotoCardProps) {
+  const initialSrc = photo.thumbnailUrl || photo.webPreviewUrl || photo.originalUrl || photo.url;
+  const [imgSrc, setImgSrc] = useState(initialSrc);
+
+  useEffect(() => {
+    setImgSrc(photo.thumbnailUrl || photo.webPreviewUrl || photo.originalUrl || photo.url);
+  }, [photo.thumbnailUrl, photo.webPreviewUrl, photo.originalUrl, photo.url]);
+
+  const handleImgError = () => {
+    if (imgSrc === photo.thumbnailUrl && photo.webPreviewUrl) {
+      setImgSrc(photo.webPreviewUrl);
+    } else if ((imgSrc === photo.thumbnailUrl || imgSrc === photo.webPreviewUrl) && (photo.originalUrl || photo.url)) {
+      setImgSrc(photo.originalUrl || photo.url);
+    }
+  };
+
   return (
     <motion.div
       layout
@@ -22,9 +38,10 @@ export default function PhotoCard({ photo, onClick }: PhotoCardProps) {
       {/* Aspect Ratio Container for Photo */}
       <div className="overflow-hidden bg-[#121110] relative aspect-[4/3] w-full border border-neutral-900/60">
         <img
-          src={photo.thumbnailUrl || photo.webPreviewUrl || photo.url}
+          src={imgSrc}
           alt={photo.title}
           referrerPolicy="no-referrer"
+          onError={handleImgError}
           className="object-cover w-full h-full grayscale-[15%] group-hover:grayscale-0 group-hover:scale-[1.015] transition-all duration-1000 ease-[0.16, 1, 0.3, 1]"
         />
       </div>

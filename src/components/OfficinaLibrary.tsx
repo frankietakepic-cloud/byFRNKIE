@@ -356,10 +356,18 @@ export default function OfficinaLibrary({
                   {/* Thumbnail Image Container */}
                   <div className="relative aspect-4/3 bg-neutral-950 overflow-hidden">
                     <img
-                      src={photo.thumbnailUrl || photo.webPreviewUrl || photo.url}
+                      src={photo.thumbnailUrl || photo.webPreviewUrl || photo.originalUrl || photo.url}
                       alt={photo.title || "Archive photo"}
                       className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                       loading="lazy"
+                      onError={(e) => {
+                        const target = e.currentTarget;
+                        if (target.src !== (photo.webPreviewUrl || photo.originalUrl || photo.url)) {
+                          target.src = photo.webPreviewUrl || photo.originalUrl || photo.url;
+                        } else if (target.src !== (photo.originalUrl || photo.url)) {
+                          target.src = photo.originalUrl || photo.url;
+                        }
+                      }}
                     />
 
                     {/* Checkbox overlay */}
