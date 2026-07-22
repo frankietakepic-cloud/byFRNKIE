@@ -237,14 +237,24 @@ async function startServer() {
 
   const app = express();
 
+  const allowedOrigins = [
+    "https://byfrnk.com",
+    "https://www.byfrnk.com"
+  ];
+
   app.use(cors({
-    origin: [
-      "https://byfrnk.com",
-      "https://www.byfrnk.com"
-    ],
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like same-origin, curl) or from allowed production/dev origins
+      if (!origin || allowedOrigins.includes(origin) || process.env.NODE_ENV !== "production") {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
     credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"]
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Duplicate-Action"],
+    optionsSuccessStatus: 200
   }));
 
   // Support JSON and urlencoded with a larger limit for base64 uploads
