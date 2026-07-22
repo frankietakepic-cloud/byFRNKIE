@@ -4,9 +4,12 @@ import {
   UploadCloud, Check, Camera, MapPin, Calendar, 
   BookOpen, Loader2, Edit, Trash2, Plus, ArrowUpRight, 
   Wrench, Layers, Eye, RefreshCw, FolderOpen, 
-  ChevronUp, ChevronDown, Tag, Trash, FileText, CheckSquare, Square, Save
+  ChevronUp, ChevronDown, Tag, Trash, FileText, CheckSquare, Square, Save,
+  X, RotateCcw, AlertCircle, CheckCircle2, Pause, Play
 } from "lucide-react";
 import { Photo, JournalEntry, Project } from "../types";
+import { useUploadQueue } from "../hooks/useUploadQueue";
+import { UploadQueueCard } from "./UploadQueueCard";
 
 interface UploadFormProps {
   photos: Photo[];
@@ -115,67 +118,27 @@ export default function UploadForm({
     };
   };
 
-  // MULTIPLE PHOTO IMPORT HANDLER
-  const handleMultipleFilesImport = async (files: FileList) => {
-    if (files.length === 0) return;
-    setIsImporting(true);
-    setImportTotal(files.length);
-    setImportCount(0);
-
-    const uploadedPhotos: Photo[] = [];
-
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      if (!file.type.startsWith("image/")) continue;
-
-      setImportCount(i + 1);
-
-      // Read file to base64
-      const base64 = await new Promise<string>((resolve) => {
-        const reader = new FileReader();
-        reader.onload = (e) => resolve(e.target?.result as string);
-        reader.readAsDataURL(file);
-      });
-
-      try {
-        const response = await fetch(`${API_URL}/api/photos`, {
-          method: "POST",
-          headers: getAuthHeaders(),
-          body: JSON.stringify({
-            imageBase64: base64,
-            title: "", // Do not invent title
-            caption: "", // Do not invent caption
-            location: "", // Do not invent location
-            date: new Date().toISOString().split("T")[0], // Keep current date as file upload moment
-            camera: "", // Do not invent camera
-            lens: "", // Do not invent lens
-            aperture: "",
-            shutterSpeed: "",
-            iso: "",
-            status: "draft", // Defaults to Draft, Not Published
-            category: ""
-          })
-        });
-
-        if (response.ok) {
-          const newPhoto = await response.json();
-          uploadedPhotos.push(newPhoto);
-          setPhotos(prev => [newPhoto, ...prev]);
-        }
-      } catch (err) {
-        console.error("Failed to import photo:", file.name, err);
+  // INSTANT BACKGROUND UPLOADER QUEUE
+  const {
+    queue: uploadQueue,
+    enqueueFiles,
+    cancelUpload,
+    retryUpload,
+    resolveDuplicate,
+    pauseQueue,
+    resumeQueue,
+    clearCompleted,
+    isUploading,
+    isPaused
+  } = useUploadQueue({
+    onPhotoUploaded: (newPhoto) => {
+      setPhotos((prev) => [newPhoto, ...prev]);
+      if (onPhotoUploaded) {
+        onPhotoUploaded(newPhoto);
       }
+      handleLoadInspector(newPhoto);
     }
-
-    setIsImporting(false);
-    setImportTotal(0);
-    setImportCount(0);
-
-    if (uploadedPhotos.length > 0) {
-      // Auto-focus on the first imported photo
-      handleLoadInspector(uploadedPhotos[0]);
-    }
-  };
+  });
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
@@ -192,13 +155,14 @@ export default function UploadForm({
     e.stopPropagation();
     setDragActive(false);
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      handleMultipleFilesImport(e.dataTransfer.files);
+      enqueueFiles(e.dataTransfer.files);
     }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      handleMultipleFilesImport(e.target.files);
+      enqueueFiles(e.target.files);
+      if (e.target) e.target.value = "";
     }
   };
 
@@ -763,26 +727,61 @@ export default function UploadForm({
               accept="image/*"
               multiple
             />
-            {isImporting ? (
-              <div className="flex flex-col items-center gap-3">
-                <Loader2 className="w-6 h-6 animate-spin text-neutral-400" />
-                <span className="font-mono text-[10px] text-neutral-400 uppercase tracking-widest">
-                  Importing Photograph {importCount} of {importTotal}...
-                </span>
-                <p className="font-sans text-[11px] text-neutral-500">Creating temporary draft entries automatically</p>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center gap-2">
-                <UploadCloud className="w-6 h-6 text-neutral-500 group-hover:text-neutral-300 transition-colors" />
-                <p className="font-serif text-sm text-neutral-300">
-                  Drag & Drop one or multiple photographs to import them as Drafts
-                </p>
-                <p className="font-mono text-[9px] text-neutral-500 uppercase tracking-widest">
-                  Click to select files (Supports bulk raw upload) // Status: Draft, Not Published
-                </p>
-              </div>
-            )}
+            <div className="flex flex-col items-center gap-2">
+              <UploadCloud className="w-6 h-6 text-neutral-500 group-hover:text-neutral-300 transition-colors" />
+              <p className="font-serif text-sm text-neutral-300">
+                Drag & Drop one or multiple photographs to import them as Drafts
+              </p>
+              <p className="font-mono text-[9px] text-neutral-500 uppercase tracking-widest">
+                Click to select files (Instant background upload // Max 3 parallel)
+              </p>
+            </div>
           </div>
+
+          {/* ACTIVE BACKGROUND UPLOAD QUEUE PANEL */}
+          {uploadQueue.length > 0 && (
+            <div className="bg-neutral-950/80 border border-neutral-800 p-4 rounded-sm flex flex-col gap-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className={`w-2 h-2 rounded-full ${isUploading ? (isPaused ? "bg-amber-500" : "bg-amber-400 animate-pulse") : "bg-emerald-400"}`} />
+                  <span className="font-mono text-[10px] uppercase tracking-wider text-neutral-300 font-semibold">
+                    Upload Queue ({uploadQueue.filter(q => q.status === "success").length}/{uploadQueue.length} completed)
+                  </span>
+                </div>
+                <div className="flex items-center gap-3">
+                  {isUploading && (
+                    <button
+                      onClick={isPaused ? resumeQueue : pauseQueue}
+                      className="flex items-center gap-1 font-mono text-[9px] uppercase tracking-wider text-neutral-300 hover:text-white transition-colors cursor-pointer bg-neutral-900 border border-neutral-800 px-2 py-0.5 rounded-xs"
+                    >
+                      {isPaused ? <Play className="w-3 h-3 text-amber-400" /> : <Pause className="w-3 h-3 text-amber-400" />}
+                      <span>{isPaused ? "Resume Queue" : "Pause Queue"}</span>
+                    </button>
+                  )}
+                  {uploadQueue.some(q => q.status === "success") && (
+                    <button
+                      onClick={clearCompleted}
+                      className="font-mono text-[9px] uppercase tracking-wider text-neutral-400 hover:text-neutral-200 transition-colors cursor-pointer"
+                    >
+                      Clear Completed
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-[280px] overflow-y-auto pr-1">
+                {uploadQueue.map((item) => (
+                  <UploadQueueCard
+                    key={item.id}
+                    item={item}
+                    onCancel={cancelUpload}
+                    onRetry={retryUpload}
+                    onResolveDuplicate={resolveDuplicate}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Lightroom Two-Column Workbench Layout */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">

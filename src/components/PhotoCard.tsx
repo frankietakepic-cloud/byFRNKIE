@@ -22,7 +22,7 @@ export default function PhotoCard({ photo, onClick }: PhotoCardProps) {
       {/* Aspect Ratio Container for Photo */}
       <div className="overflow-hidden bg-[#121110] relative aspect-[4/3] w-full border border-neutral-900/60">
         <img
-          src={photo.url}
+          src={photo.thumbnailUrl || photo.webPreviewUrl || photo.url}
           alt={photo.title}
           referrerPolicy="no-referrer"
           className="object-cover w-full h-full grayscale-[15%] group-hover:grayscale-0 group-hover:scale-[1.015] transition-all duration-1000 ease-[0.16, 1, 0.3, 1]"

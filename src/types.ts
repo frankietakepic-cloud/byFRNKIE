@@ -1,6 +1,10 @@
 export interface Photo {
   id: string;
   url: string;
+  thumbnailUrl?: string;
+  webPreviewUrl?: string;
+  originalUrl?: string;
+  sha256?: string;
   title: string;
   caption?: string;
   story?: string;

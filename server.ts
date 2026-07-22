@@ -2,6 +2,10 @@ import express from "express";
 import cors from "cors";
 import path from "path";
 import fs from "fs";
+import crypto from "crypto";
+import multer from "multer";
+import exifr from "exifr";
+import sharp from "sharp";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import { initialPhotos, initialJournals, initialProjects } from "./src/data";
@@ -10,6 +14,152 @@ import { initialPages, initialHeroConfig } from "./src/dataPages";
 const PORT = 3000;
 const DATA_DIR = path.join(process.cwd(), "data");
 const UPLOADS_DIR = path.join(process.cwd(), "public", "uploads");
+const TMP_DIR = path.join(UPLOADS_DIR, "tmp");
+const ORIGINALS_DIR = path.join(UPLOADS_DIR, "originals");
+const PREVIEWS_DIR = path.join(UPLOADS_DIR, "web");
+const THUMBS_DIR = path.join(UPLOADS_DIR, "thumbs");
+
+[UPLOADS_DIR, TMP_DIR, ORIGINALS_DIR, PREVIEWS_DIR, THUMBS_DIR].forEach((dir) => {
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+});
+
+// Stream uploaded files directly to temporary disk staging directory without RAM buffering
+const diskStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, TMP_DIR);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+    const ext = path.extname(file.originalname) || ".jpg";
+    cb(null, `upload-${uniqueSuffix}${ext}`);
+  }
+});
+
+const uploadMiddleware = multer({
+  storage: diskStorage,
+  limits: { fileSize: 500 * 1024 * 1024 } // 500MB max per file stream
+});
+
+function calculateFileSha256(filePath: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const hash = crypto.createHash("sha256");
+    const stream = fs.createReadStream(filePath);
+    stream.on("data", (chunk) => hash.update(chunk));
+    stream.on("end", () => resolve(hash.digest("hex")));
+    stream.on("error", reject);
+  });
+}
+
+async function extractExifFromFilePath(filePath: string) {
+  try {
+    const raw = await exifr.parse(filePath, {
+      tiff: true,
+      exif: true,
+      gps: true,
+      translateKeys: true,
+      translateValues: true,
+      reviveValues: true
+    });
+
+    if (!raw) return {};
+
+    let camera = "";
+    if (raw.Make || raw.Model) {
+      const make = (raw.Make || "").trim();
+      const model = (raw.Model || "").trim();
+      camera = model.toLowerCase().startsWith(make.toLowerCase()) ? model : `${make} ${model}`.trim();
+    }
+
+    const lens = raw.LensModel || raw.LensInfo || raw.Lens || "";
+    const iso = raw.ISO ? `${raw.ISO}` : "";
+    const aperture = raw.FNumber ? `f/${raw.FNumber}` : (raw.ApertureValue ? `f/${raw.ApertureValue}` : "");
+
+    let shutterSpeed = "";
+    if (raw.ExposureTime) {
+      shutterSpeed = raw.ExposureTime < 1
+        ? `1/${Math.round(1 / raw.ExposureTime)}s`
+        : `${raw.ExposureTime}s`;
+    }
+
+    const focalLength = raw.FocalLength ? `${Math.round(raw.FocalLength)}mm` : "";
+
+    let dateStr = "";
+    if (raw.DateTimeOriginal || raw.CreateDate) {
+      const d = new Date(raw.DateTimeOriginal || raw.CreateDate);
+      if (!isNaN(d.getTime())) {
+        dateStr = d.toISOString().split("T")[0];
+      }
+    }
+
+    let gpsStr = "";
+    if (raw.latitude !== undefined && raw.longitude !== undefined) {
+      gpsStr = `${raw.latitude.toFixed(6)}, ${raw.longitude.toFixed(6)}`;
+    }
+
+    let orientation = "Landscape";
+    const width = raw.ExifImageWidth || raw.ImageWidth;
+    const height = raw.ExifImageHeight || raw.ImageHeight;
+    if (width && height) {
+      if (height > width) orientation = "Portrait";
+      else if (height === width) orientation = "Square";
+    }
+
+    const dimensions = (width && height) ? `${width} x ${height}` : "";
+
+    return {
+      camera,
+      lens,
+      iso,
+      aperture,
+      shutterSpeed,
+      focalLength,
+      date: dateStr,
+      gps: gpsStr,
+      orientation,
+      dimensions
+    };
+  } catch (err) {
+    console.warn("Could not extract EXIF data:", err);
+    return {};
+  }
+}
+
+async function processImageDerivatives(sourceFilePath: string, baseFilename: string) {
+  const now = new Date();
+  const year = now.getFullYear().toString();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+
+  const webDir = path.join(PREVIEWS_DIR, year, month);
+  const thumbDir = path.join(THUMBS_DIR, year, month);
+
+  if (!fs.existsSync(webDir)) fs.mkdirSync(webDir, { recursive: true });
+  if (!fs.existsSync(thumbDir)) fs.mkdirSync(thumbDir, { recursive: true });
+
+  const webFilename = `${baseFilename}-web.webp`;
+  const thumbFilename = `${baseFilename}-thumb.webp`;
+
+  const webPath = path.join(webDir, webFilename);
+  const thumbPath = path.join(thumbDir, thumbFilename);
+
+  // High performance WebP Web Preview (max 1920px)
+  await sharp(sourceFilePath)
+    .rotate()
+    .resize({ width: 1920, height: 1920, fit: "inside", withoutEnlargement: true })
+    .webp({ quality: 85 })
+    .toFile(webPath);
+
+  // Fast WebP Thumbnail (500px cover)
+  await sharp(sourceFilePath)
+    .rotate()
+    .resize({ width: 500, height: 500, fit: "cover" })
+    .webp({ quality: 80 })
+    .toFile(thumbPath);
+
+  return {
+    webPreviewUrl: `/uploads/web/${year}/${month}/${webFilename}`,
+    thumbnailUrl: `/uploads/thumbs/${year}/${month}/${thumbFilename}`
+  };
+}
 
 // Lazy Gemini AI initialization
 let aiClient: GoogleGenAI | null = null;
@@ -173,72 +323,162 @@ async function startServer() {
     res.json(photos);
   });
 
-  app.post("/api/photos", requireAuth, (req, res) => {
-    const { 
-      title, caption, story, location, country, date, time, camera, lens, 
-      focalLength, aperture, shutterSpeed, iso, gps, orientation, dimensions, 
-      colorProfile, status, category, collections, tags, rating, flag, favorite, colorLabel, imageBase64 
-    } = req.body;
-    
-    if (!imageBase64 && !req.body.url) {
-      res.status(400).json({ error: "Image is required" });
-      return;
-    }
-
+  app.post("/api/photos", uploadMiddleware.single("file"), requireAuth, async (req, res) => {
+    let tempFilePath: string | null = null;
     try {
-      let url = req.body.url || "";
-      if (imageBase64 && imageBase64.startsWith("data:")) {
-        const matches = imageBase64.match(/^data:([A-Za-z-+/]+);base64,(.+)$/);
+      if (req.file) {
+        tempFilePath = req.file.path;
+      } else if (req.body?.imageBase64 && req.body.imageBase64.startsWith("data:")) {
+        const matches = req.body.imageBase64.match(/^data:([A-Za-z-+/]+);base64,(.+)$/);
         if (matches && matches.length === 3) {
-          const mimeType = matches[1];
           const base64Data = matches[2];
           const buffer = Buffer.from(base64Data, "base64");
-
-          let extension = "jpg";
-          if (mimeType.includes("png")) extension = "png";
-          else if (mimeType.includes("webp")) extension = "webp";
-
-          const filename = `photo-${Date.now()}.${extension}`;
-          const filePath = path.join(UPLOADS_DIR, filename);
-          fs.writeFileSync(filePath, buffer);
-          url = `/uploads/${filename}`;
+          const tempName = `upload-${Date.now()}-${Math.random().toString(36).substring(2, 9)}.jpg`;
+          tempFilePath = path.join(TMP_DIR, tempName);
+          fs.writeFileSync(tempFilePath, buffer);
         }
       }
 
+      if (!tempFilePath && !req.body?.url) {
+        res.status(400).json({ error: "Image file or URL is required" });
+        return;
+      }
+
       const photos = readDataFile<any[]>(PHOTOS_PATH, []);
+      let sha256 = "";
+      let exif: any = {};
+      let originalUrl = req.body?.url || "";
+      let webPreviewUrl = req.body?.url || "";
+      let thumbnailUrl = req.body?.url || "";
+
+      if (tempFilePath) {
+        // Step A: Stream calculate SHA256 hash without loading into RAM
+        sha256 = await calculateFileSha256(tempFilePath);
+
+        // Step B: Fast duplicate check
+        const existingIndex = photos.findIndex((p) => p.sha256 === sha256);
+        const duplicateAction = (req.headers["x-duplicate-action"] || "check").toString().toLowerCase();
+
+        if (existingIndex !== -1) {
+          const existingPhoto = photos[existingIndex];
+          if (duplicateAction === "check") {
+            if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
+            res.status(409).json({
+              error: "Duplicate photograph detected",
+              duplicate: true,
+              existingPhoto
+            });
+            return;
+          } else if (duplicateAction === "skip") {
+            if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
+            res.status(200).json({
+              message: "Duplicate photograph skipped",
+              duplicate: true,
+              action: "skipped",
+              photo: existingPhoto
+            });
+            return;
+          }
+          // If 'replace' or 'keep', continue
+        }
+
+        // Step C: Move to partitioned directory structure (/uploads/originals/YYYY/MM/)
+        const now = new Date();
+        const year = now.getFullYear().toString();
+        const month = String(now.getMonth() + 1).padStart(2, "0");
+        const origDir = path.join(ORIGINALS_DIR, year, month);
+        if (!fs.existsSync(origDir)) fs.mkdirSync(origDir, { recursive: true });
+
+        const ext = path.extname(tempFilePath) || ".jpg";
+        const baseFilename = `photo-${Date.now()}-${sha256.substring(0, 8)}`;
+        const originalFilename = `${baseFilename}${ext}`;
+        const finalOriginalPath = path.join(origDir, originalFilename);
+
+        // Move temp file to partitioned originals folder
+        fs.renameSync(tempFilePath, finalOriginalPath);
+        tempFilePath = null; // Cleared
+
+        originalUrl = `/uploads/originals/${year}/${month}/${originalFilename}`;
+
+        // Step D: Extract EXIF & Generate WebP derivatives (Web Preview & Thumbnail)
+        exif = await extractExifFromFilePath(finalOriginalPath);
+        try {
+          const derivatives = await processImageDerivatives(finalOriginalPath, baseFilename);
+          webPreviewUrl = derivatives.webPreviewUrl;
+          thumbnailUrl = derivatives.thumbnailUrl;
+        } catch (derivErr) {
+          console.warn("Failed to generate image derivatives, falling back to original:", derivErr);
+          webPreviewUrl = originalUrl;
+          thumbnailUrl = originalUrl;
+        }
+
+        if (duplicateAction === "replace" && existingIndex !== -1) {
+          const existingPhoto = photos[existingIndex];
+          const updatedPhoto = {
+            ...existingPhoto,
+            ...req.body,
+            originalUrl,
+            webPreviewUrl,
+            thumbnailUrl,
+            url: webPreviewUrl,
+            sha256,
+            camera: req.body?.camera || exif.camera || existingPhoto.camera || "",
+            lens: req.body?.lens || exif.lens || existingPhoto.lens || "",
+            focalLength: req.body?.focalLength || exif.focalLength || existingPhoto.focalLength || "",
+            aperture: req.body?.aperture || exif.aperture || existingPhoto.aperture || "",
+            shutterSpeed: req.body?.shutterSpeed || exif.shutterSpeed || existingPhoto.shutterSpeed || "",
+            iso: req.body?.iso || exif.iso || existingPhoto.iso || "",
+            gps: req.body?.gps || exif.gps || existingPhoto.gps || "",
+            orientation: req.body?.orientation || exif.orientation || existingPhoto.orientation || "Landscape",
+            dimensions: req.body?.dimensions || exif.dimensions || existingPhoto.dimensions || "",
+            updatedAt: new Date().toISOString()
+          };
+
+          photos[existingIndex] = updatedPhoto;
+          writeDataFile(PHOTOS_PATH, photos);
+          res.json(updatedPhoto);
+          return;
+        }
+      }
+
       const timestamp = Date.now();
-      const slugTitle = (title || "untitled").toLowerCase().replace(/[^a-z0-0]+/g, "-").replace(/^-|-$/g, "");
+      const rawTitle = req.body?.title || "";
+      const slugTitle = rawTitle.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
       const newPhoto = {
         id: `photo-${timestamp}`,
-        url,
-        title: title || "",
-        caption: caption || "",
-        story: story || "",
-        date: date || new Date().toISOString().split("T")[0],
-        time: time || "",
-        location: location || "",
-        country: country || "",
-        camera: camera || "",
-        lens: lens || "",
-        focalLength: focalLength || "",
-        aperture: aperture || "",
-        shutterSpeed: shutterSpeed || "",
-        iso: iso || "",
-        gps: gps || "",
-        orientation: orientation || "Landscape",
-        dimensions: dimensions || "",
-        colorProfile: colorProfile || "sRGB",
-        status: status || "draft",
-        category: category || "",
-        collections: Array.isArray(collections) ? collections : [],
-        tags: Array.isArray(tags) ? tags : [],
-        rating: rating !== undefined ? rating : 0,
-        flag: flag || "none",
-        favorite: !!favorite,
-        colorLabel: colorLabel || "none",
+        originalUrl: originalUrl || webPreviewUrl,
+        webPreviewUrl: webPreviewUrl || originalUrl,
+        thumbnailUrl: thumbnailUrl || webPreviewUrl || originalUrl,
+        url: webPreviewUrl || originalUrl, // Gallery defaults to lightweight web preview
+        sha256,
+        title: rawTitle,
+        caption: req.body?.caption || "",
+        story: req.body?.story || "",
+        date: req.body?.date || exif.date || new Date().toISOString().split("T")[0],
+        time: req.body?.time || "",
+        location: req.body?.location || "",
+        country: req.body?.country || "",
+        camera: req.body?.camera || exif.camera || "",
+        lens: req.body?.lens || exif.lens || "",
+        focalLength: req.body?.focalLength || exif.focalLength || "",
+        aperture: req.body?.aperture || exif.aperture || "",
+        shutterSpeed: req.body?.shutterSpeed || exif.shutterSpeed || "",
+        iso: req.body?.iso || exif.iso || "",
+        gps: req.body?.gps || exif.gps || "",
+        orientation: req.body?.orientation || exif.orientation || "Landscape",
+        dimensions: req.body?.dimensions || exif.dimensions || "",
+        colorProfile: req.body?.colorProfile || "sRGB",
+        status: req.body?.status || "draft",
+        category: req.body?.category || "",
+        collections: Array.isArray(req.body?.collections) ? req.body.collections : [],
+        tags: Array.isArray(req.body?.tags) ? req.body.tags : [],
+        rating: req.body?.rating !== undefined ? Number(req.body.rating) : 0,
+        flag: req.body?.flag || "none",
+        favorite: !!req.body?.favorite,
+        colorLabel: req.body?.colorLabel || "none",
         slug: slugTitle ? `photo-${slugTitle}` : `photo-${timestamp}`,
-        publishedDate: status === "published" ? new Date().toISOString() : undefined
+        publishedDate: req.body?.status === "published" ? new Date().toISOString() : undefined
       };
 
       photos.unshift(newPhoto);
@@ -246,6 +486,9 @@ async function startServer() {
 
       res.status(201).json(newPhoto);
     } catch (error) {
+      if (tempFilePath && fs.existsSync(tempFilePath)) {
+        try { fs.unlinkSync(tempFilePath); } catch {}
+      }
       console.error("Failed to save photo:", error);
       res.status(500).json({ error: "Internal server error" });
     }
