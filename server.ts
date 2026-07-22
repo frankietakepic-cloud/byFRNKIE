@@ -485,9 +485,16 @@ async function startServer() {
         const originalFilename = `${baseFilename}${ext}`;
         const finalOriginalPath = path.join(origDir, originalFilename);
 
+        const uploadTempFilePathForLog = tempFilePath;
         // Move temp file to partitioned originals folder
         fs.renameSync(tempFilePath, finalOriginalPath);
         tempFilePath = null; // Cleared
+
+        console.log(`\n--- UPLOAD RENAME VERIFICATION ---`);
+        console.log(`tempFilePath: ${uploadTempFilePathForLog}`);
+        console.log(`finalOriginalPath: ${finalOriginalPath}`);
+        console.log(`fs.existsSync(finalOriginalPath): ${fs.existsSync(finalOriginalPath)}`);
+        console.log(`----------------------------------\n`);
 
         originalUrl = `/uploads/originals/${year}/${month}/${originalFilename}`;
 
@@ -1054,8 +1061,16 @@ async function startServer() {
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`[byFRNK Server] Running on http://0.0.0.0:${PORT} [ENV: ${process.env.NODE_ENV || "development"}]`);
-    console.log(`[byFRNK Server] UPLOADS_DIR: ${path.resolve(UPLOADS_DIR)}`);
-    console.log(`[byFRNK Server] Express Static: /uploads -> ${path.resolve(UPLOADS_DIR)}`);
+    console.log(`\n--- SERVER STARTUP DIRECTORY VERIFICATION ---`);
+    console.log(`process.cwd(): ${process.cwd()}`);
+    console.log(`UPLOADS_DIR: ${UPLOADS_DIR}`);
+    console.log(`TMP_DIR: ${TMP_DIR}`);
+    console.log(`ORIGINALS_DIR: ${ORIGINALS_DIR}`);
+    console.log(`PREVIEWS_DIR: ${PREVIEWS_DIR}`);
+    console.log(`THUMBS_DIR: ${THUMBS_DIR}`);
+    console.log(`fs.existsSync(UPLOADS_DIR): ${fs.existsSync(UPLOADS_DIR)}`);
+    console.log(`fs.existsSync(ORIGINALS_DIR): ${fs.existsSync(ORIGINALS_DIR)}`);
+    console.log(`---------------------------------------------\n`);
   });
 }
 
