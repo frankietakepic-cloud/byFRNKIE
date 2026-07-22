@@ -1,4 +1,5 @@
 import express from "express";
+import cors from "cors";
 import path from "path";
 import fs from "fs";
 import { createServer as createViteServer } from "vite";
@@ -81,6 +82,16 @@ if (!fs.existsSync(HERO_CONFIG_PATH)) {
 
 async function startServer() {
   const app = express();
+
+  app.use(cors({
+    origin: [
+      "https://byfrnk.com",
+      "https://www.byfrnk.com"
+    ],
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"]
+  }));
 
   // Support JSON and urlencoded with a larger limit for base64 uploads
   app.use(express.json({ limit: "50mb" }));
