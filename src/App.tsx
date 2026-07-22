@@ -75,6 +75,15 @@ export default function App() {
 
       if (photosRes.ok) {
         const photosData = await photosRes.json();
+        console.log(`[Frontend Origin Audit] API_URL: "${API_URL}"`);
+        console.log(`[Frontend Origin Audit] window.location.origin: "${window.location.origin}"`);
+        console.log(`[Frontend Origin Audit] Returned /api/photos URLs:`, photosData.map((p: any) => ({
+          id: p.id,
+          originalUrl: p.originalUrl,
+          webPreviewUrl: p.webPreviewUrl,
+          thumbnailUrl: p.thumbnailUrl,
+          url: p.url
+        })));
         if (photosData.length > 0) setPhotos(photosData);
       }
       if (journalsRes.ok) {

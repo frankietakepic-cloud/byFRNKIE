@@ -338,6 +338,8 @@ export default function OfficinaLibrary({
               return (
                 <div
                   key={photo.id}
+                  data-id={photo.id}
+                  data-key={photo.id}
                   onClick={(e) => {
                     if (e.shiftKey || e.ctrlKey || e.metaKey) {
                       onSelectPhotoToggle(photo.id, true);
@@ -358,14 +360,17 @@ export default function OfficinaLibrary({
                     <img
                       src={photo.thumbnailUrl || photo.webPreviewUrl || photo.originalUrl || photo.url}
                       alt={photo.title || "Archive photo"}
+                      data-id={photo.id}
                       className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                       loading="lazy"
                       onError={(e) => {
                         const target = e.currentTarget;
-                        if (target.src !== (photo.webPreviewUrl || photo.originalUrl || photo.url)) {
-                          target.src = photo.webPreviewUrl || photo.originalUrl || photo.url;
-                        } else if (target.src !== (photo.originalUrl || photo.url)) {
-                          target.src = photo.originalUrl || photo.url;
+                        const fallback1 = photo.webPreviewUrl || photo.originalUrl || photo.url;
+                        const fallback2 = photo.originalUrl || photo.url;
+                        if (!target.src.endsWith(fallback1)) {
+                          target.src = fallback1;
+                        } else if (!target.src.endsWith(fallback2)) {
+                          target.src = fallback2;
                         }
                       }}
                     />

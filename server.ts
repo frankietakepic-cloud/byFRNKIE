@@ -202,6 +202,8 @@ async function processImageDerivatives(sourceFilePath: string, baseFilename: str
     hasThumb,
     webPath,
     thumbPath,
+    webFilename,
+    thumbFilename,
     webSize,
     thumbSize
   };
@@ -528,34 +530,31 @@ async function startServer() {
         console.log(`\n==================================================`);
         console.log(`[Upload Pipeline Audit] REALTIME RUNTIME LOGS`);
         console.log(`==================================================`);
-        console.log(`1. Original uploaded file:`);
-        console.log(`   Absolute filesystem path: ${origAbsPath}`);
-        console.log(`   Exists: ${origExists}`);
-        console.log(`   File size: ${origSize} bytes`);
+        console.log(`1. Filenames:`);
+        console.log(`   Original uploaded filename: ${req.file?.originalname || "Base64 payload"}`);
+        console.log(`   Generated base filename: ${baseFilename}`);
+        console.log(`   Generated original filename: ${originalFilename}`);
+        console.log(`   Generated web preview filename: ${derivResult.webFilename || baseFilename + "-web.webp"}`);
+        console.log(`   Generated thumbnail filename: ${derivResult.thumbFilename || baseFilename + "-thumb.webp"}`);
         console.log(``);
-        console.log(`2. Generated Web Preview:`);
-        console.log(`   Absolute filesystem path: ${webAbsPath}`);
-        console.log(`   Exists: ${webExists}`);
-        console.log(`   File size: ${webSize} bytes`);
+        console.log(`2. Output Paths:`);
+        console.log(`   Original output path: ${origAbsPath}`);
+        console.log(`   Web preview output path: ${webAbsPath}`);
+        console.log(`   Thumbnail output path: ${thumbAbsPath}`);
         console.log(``);
-        console.log(`3. Generated Thumbnail:`);
-        console.log(`   Absolute filesystem path: ${thumbAbsPath}`);
-        console.log(`   Exists: ${thumbExists}`);
-        console.log(`   File size: ${thumbSize} bytes`);
+        console.log(`3. Sharp Conversion Status:`);
+        console.log(`   Sharp Web Preview success: ${derivResult.hasWeb ? "SUCCESS" : "FALLBACK"}`);
+        console.log(`   Sharp Thumbnail success: ${derivResult.hasThumb ? "SUCCESS" : "FALLBACK"}`);
         console.log(``);
-        console.log(`4. URLs saved into the database:`);
+        console.log(`4. File Sizes & Existence on Disk:`);
+        console.log(`   Original: ${origSize} bytes (${origExists ? "EXISTS" : "MISSING"})`);
+        console.log(`   Web Preview: ${webSize} bytes (${webExists ? "EXISTS" : "MISSING"})`);
+        console.log(`   Thumbnail: ${thumbSize} bytes (${thumbExists ? "EXISTS" : "MISSING"})`);
+        console.log(``);
+        console.log(`5. URLs saved into Database:`);
         console.log(`   originalUrl: ${originalUrl}`);
         console.log(`   webPreviewUrl: ${webPreviewUrl}`);
         console.log(`   thumbnailUrl: ${thumbnailUrl}`);
-        console.log(``);
-        console.log(`5. Filesystem Pre-Response Verification (fs.existsSync):`);
-        console.log(`   Original (${origAbsPath}): ${origExists ? "FOUND" : "MISSING"}`);
-        console.log(`   Web Preview (${webAbsPath}): ${webExists ? "FOUND" : "MISSING"}`);
-        console.log(`   Thumbnail (${thumbAbsPath}): ${thumbExists ? "FOUND" : "MISSING"}`);
-        console.log(``);
-        console.log(`6. Express Static Configuration:`);
-        console.log(`   UPLOADS_DIR: ${path.resolve(UPLOADS_DIR)}`);
-        console.log(`   Express Static Route: /uploads -> ${path.resolve(UPLOADS_DIR)}`);
         console.log(`==================================================\n`);
 
         if (duplicateAction === "replace" && existingIndex !== -1) {
@@ -1026,7 +1025,24 @@ async function startServer() {
   });
 
   // Serve static uploads
-  app.use("/uploads", express.static(UPLOADS_DIR));
+  app.use(
+    "/uploads",
+    express.static(UPLOADS_DIR, {
+      etag: true,
+      immutable: true,
+      maxAge: "365d"
+    })
+  );
+
+  // Catch unmatched /uploads requests so they never fall through to SPA fallback or Vite
+  app.use("/uploads", (req, res) => {
+    res.status(404).send("File not found");
+  });
+
+  // Catch unmatched /api requests so they return JSON 404 instead of HTML
+  app.use("/api", (req, res) => {
+    res.status(404).json({ error: "API endpoint not found" });
+  });
 
   // Serve Vite or static build with explicit SPA fallback
   if (process.env.NODE_ENV !== "production") {
@@ -1038,9 +1054,6 @@ async function startServer() {
 
     // Fallback for HTML navigation requests (e.g. /officina or deep links in Safari)
     app.use("*", async (req, res, next) => {
-      if (req.originalUrl.startsWith("/api") || req.originalUrl.startsWith("/uploads")) {
-        return next();
-      }
       try {
         const indexPath = path.join(process.cwd(), "index.html");
         let template = fs.readFileSync(indexPath, "utf-8");

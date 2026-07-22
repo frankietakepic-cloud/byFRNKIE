@@ -1,5 +1,5 @@
-// L'Officina Creative OS Service Worker v2.0
-const CACHE_NAME = "lofficina-v2-cache";
+// L'Officina Creative OS Service Worker v3.0
+const CACHE_NAME = "lofficina-v3-cache";
 const ASSETS_TO_CACHE = [
   "/",
   "/index.html",
@@ -36,6 +36,11 @@ self.addEventListener("activate", (event) => {
 // Fetch Event - Stale-while-revalidate for static, Network-first for API
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
+
+  // Skip uploaded images and media completely - fetch directly from network
+  if (url.pathname.startsWith("/uploads/")) {
+    return;
+  }
 
   // For API endpoints: Network first, fallback to offline response
   if (url.pathname.startsWith("/api/")) {

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "motion/react";
-import { MapPin, Calendar, Camera } from "lucide-react";
+import { MapPin, Calendar } from "lucide-react";
 import { Photo } from "../types";
 
 interface PhotoCardProps {
@@ -10,12 +10,22 @@ interface PhotoCardProps {
 }
 
 export default function PhotoCard({ photo, onClick }: PhotoCardProps) {
-  const initialSrc = photo.thumbnailUrl || photo.webPreviewUrl || photo.originalUrl || photo.url;
-  const [imgSrc, setImgSrc] = useState(initialSrc);
+  const targetSrc = photo.thumbnailUrl || photo.webPreviewUrl || photo.originalUrl || photo.url;
+  const [imgSrc, setImgSrc] = useState(targetSrc);
 
+  // Sync state whenever photo.id or photo URLs change
   useEffect(() => {
-    setImgSrc(photo.thumbnailUrl || photo.webPreviewUrl || photo.originalUrl || photo.url);
-  }, [photo.thumbnailUrl, photo.webPreviewUrl, photo.originalUrl, photo.url]);
+    const newSrc = photo.thumbnailUrl || photo.webPreviewUrl || photo.originalUrl || photo.url;
+    setImgSrc(newSrc);
+  }, [photo.id, photo.thumbnailUrl, photo.webPreviewUrl, photo.originalUrl, photo.url]);
+
+  // Log table for render audit
+  console.table({
+    photoId: photo.id,
+    thumbnail: photo.thumbnailUrl,
+    web: photo.webPreviewUrl,
+    renderedSrc: imgSrc
+  });
 
   const handleImgError = () => {
     if (imgSrc === photo.thumbnailUrl && photo.webPreviewUrl) {
@@ -33,6 +43,8 @@ export default function PhotoCard({ photo, onClick }: PhotoCardProps) {
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 15 }}
       transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+      data-id={photo.id}
+      data-key={photo.id}
       className="cursor-pointer group flex flex-col gap-4 bg-transparent rounded-none transition-all duration-300"
     >
       {/* Aspect Ratio Container for Photo */}
@@ -40,6 +52,7 @@ export default function PhotoCard({ photo, onClick }: PhotoCardProps) {
         <img
           src={imgSrc}
           alt={photo.title}
+          data-id={photo.id}
           referrerPolicy="no-referrer"
           onError={handleImgError}
           className="object-cover w-full h-full grayscale-[15%] group-hover:grayscale-0 group-hover:scale-[1.015] transition-all duration-1000 ease-[0.16, 1, 0.3, 1]"
@@ -71,3 +84,4 @@ export default function PhotoCard({ photo, onClick }: PhotoCardProps) {
     </motion.div>
   );
 }
+

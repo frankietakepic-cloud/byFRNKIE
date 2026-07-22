@@ -920,6 +920,8 @@ export default function UploadForm({
                     return (
                       <div
                         key={photo.id}
+                        data-id={photo.id}
+                        data-key={photo.id}
                         onClick={() => handleLoadInspector(photo)}
                         className={`group border p-1.5 transition-all duration-300 relative cursor-pointer flex flex-col justify-between ${
                           isActive 
@@ -957,8 +959,9 @@ export default function UploadForm({
                         {/* Main Media thumbnail */}
                         <div className="aspect-[4/3] w-full overflow-hidden bg-black border border-neutral-900 mb-2">
                           <img
-                            src={photo.url}
+                            src={photo.thumbnailUrl || photo.webPreviewUrl || photo.originalUrl || photo.url}
                             alt={photo.title || "Observation"}
+                            data-id={photo.id}
                             className="w-full h-full object-cover grayscale-[10%] group-hover:grayscale-0 transition-all duration-500"
                           />
                         </div>
