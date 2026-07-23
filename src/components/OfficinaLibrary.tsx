@@ -335,11 +335,8 @@ export default function OfficinaLibrary({
                 purple: "bg-purple-500"
               };
 
-              const assignedSrc = photo.thumbnailUrl || photo.webPreviewUrl || photo.originalUrl || photo.url;
-
-              // Step 1: Print complete photo object from array before rendering
-              console.log(`[OfficinaLibrary RAW PHOTO DATA] photo.id=${photo.id}`);
-              console.log(JSON.stringify(photo, null, 2));
+              const defaultFallback = "https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?q=80&w=800&auto=format&fit=crop";
+              const assignedSrc = photo.thumbnailUrl || photo.webPreviewUrl || photo.originalUrl || photo.url || defaultFallback;
 
               return (
                 <div
@@ -369,42 +366,16 @@ export default function OfficinaLibrary({
                       data-id={photo.id}
                       className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                       loading="lazy"
-                      onLoad={(e) => {
-                        const img = e.currentTarget;
-                        console.log(`[OfficinaLibrary Image onLoad]`, {
-                          photoId: photo.id,
-                          thumbnailUrl: photo.thumbnailUrl,
-                          webPreviewUrl: photo.webPreviewUrl,
-                          originalUrl: photo.originalUrl,
-                          currentSrc: img.src,
-                          onLoadFired: true,
-                          onErrorFired: false,
-                          naturalWidth: img.naturalWidth,
-                          naturalHeight: img.naturalHeight,
-                          complete: img.complete
-                        });
-                      }}
                       onError={(e) => {
                         const img = e.currentTarget;
-                        console.error(`[OfficinaLibrary Image onError]`, {
-                          photoId: photo.id,
-                          thumbnailUrl: photo.thumbnailUrl,
-                          webPreviewUrl: photo.webPreviewUrl,
-                          originalUrl: photo.originalUrl,
-                          currentSrc: img.src,
-                          onLoadFired: false,
-                          onErrorFired: true,
-                          naturalWidth: img.naturalWidth,
-                          naturalHeight: img.naturalHeight,
-                          complete: img.complete
-                        });
-
-                        const fallback1 = photo.webPreviewUrl || photo.originalUrl || photo.url;
-                        const fallback2 = photo.originalUrl || photo.url;
-                        if (!img.src.endsWith(fallback1)) {
+                        const fallback1 = photo.webPreviewUrl || photo.originalUrl || photo.url || defaultFallback;
+                        const fallback2 = photo.originalUrl || photo.url || defaultFallback;
+                        if (img.src !== fallback1) {
                           img.src = fallback1;
-                        } else if (!img.src.endsWith(fallback2)) {
+                        } else if (img.src !== fallback2) {
                           img.src = fallback2;
+                        } else if (img.src !== defaultFallback) {
+                          img.src = defaultFallback;
                         }
                       }}
                     />

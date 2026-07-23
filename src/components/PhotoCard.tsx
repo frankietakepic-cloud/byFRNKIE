@@ -19,19 +19,15 @@ export default function PhotoCard({ photo, onClick }: PhotoCardProps) {
     setImgSrc(newSrc);
   }, [photo.id, photo.thumbnailUrl, photo.webPreviewUrl, photo.originalUrl, photo.url]);
 
-  // Log table for render audit
-  console.table({
-    photoId: photo.id,
-    thumbnail: photo.thumbnailUrl,
-    web: photo.webPreviewUrl,
-    renderedSrc: imgSrc
-  });
+  const defaultFallback = "https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?q=80&w=800&auto=format&fit=crop";
 
   const handleImgError = () => {
     if (imgSrc === photo.thumbnailUrl && photo.webPreviewUrl) {
       setImgSrc(photo.webPreviewUrl);
     } else if ((imgSrc === photo.thumbnailUrl || imgSrc === photo.webPreviewUrl) && (photo.originalUrl || photo.url)) {
       setImgSrc(photo.originalUrl || photo.url);
+    } else if (imgSrc !== defaultFallback) {
+      setImgSrc(defaultFallback);
     }
   };
 
@@ -50,41 +46,11 @@ export default function PhotoCard({ photo, onClick }: PhotoCardProps) {
       {/* Aspect Ratio Container for Photo */}
       <div className="overflow-hidden bg-[#121110] relative aspect-[4/3] w-full border border-neutral-900/60">
         <img
-          src={imgSrc}
+          src={imgSrc || defaultFallback}
           alt={photo.title}
           data-id={photo.id}
           referrerPolicy="no-referrer"
-          onLoad={(e) => {
-            const img = e.currentTarget;
-            console.log(`[PhotoCard Image onLoad]`, {
-              photoId: photo.id,
-              thumbnailUrl: photo.thumbnailUrl,
-              webPreviewUrl: photo.webPreviewUrl,
-              originalUrl: photo.originalUrl,
-              currentSrc: img.src,
-              onLoadFired: true,
-              onErrorFired: false,
-              naturalWidth: img.naturalWidth,
-              naturalHeight: img.naturalHeight,
-              complete: img.complete
-            });
-          }}
-          onError={(e) => {
-            const img = e.currentTarget;
-            console.error(`[PhotoCard Image onError]`, {
-              photoId: photo.id,
-              thumbnailUrl: photo.thumbnailUrl,
-              webPreviewUrl: photo.webPreviewUrl,
-              originalUrl: photo.originalUrl,
-              currentSrc: img.src,
-              onLoadFired: false,
-              onErrorFired: true,
-              naturalWidth: img.naturalWidth,
-              naturalHeight: img.naturalHeight,
-              complete: img.complete
-            });
-            handleImgError();
-          }}
+          onError={handleImgError}
           className="object-cover w-full h-full grayscale-[15%] group-hover:grayscale-0 group-hover:scale-[1.015] transition-all duration-1000 ease-[0.16, 1, 0.3, 1]"
         />
       </div>

@@ -1,26 +1,12 @@
 import React, { useState, useEffect } from "react";
-import { API_URL } from "./lib/api";
-import { motion, AnimatePresence } from "motion/react";
+import { motion } from "motion/react";
 import { RefreshCw } from "lucide-react";
 import { Photo, JournalEntry, Project, DailyEntry, PageLayout, HeroConfig } from "./types";
 import { initialPhotos, initialJournals, initialProjects, initialDailyEntries } from "./data";
 import { initialPages, initialHeroConfig } from "./dataPages";
+import { apiService } from "./services/api";
 
-import PublicHeader from "./components/public/PublicHeader";
-import PublicFooter from "./components/public/PublicFooter";
-import PublicHomeView from "./components/public/PublicHomeView";
-import PublicJournalView from "./components/public/PublicJournalView";
-import PublicWorkshopView from "./components/public/PublicWorkshopView";
-import PublicGalleriaView from "./components/public/PublicGalleriaView";
-import PublicDailyView from "./components/public/PublicDailyView";
-import PublicMapView from "./components/public/PublicMapView";
-import PublicTimelineView from "./components/public/PublicTimelineView";
-import PublicAboutView from "./components/public/PublicAboutView";
-import PublicSearchModal from "./components/public/PublicSearchModal";
-import PublicDetailModal from "./components/public/PublicDetailModal";
-import Public404View from "./components/public/Public404View";
-import PublicPageRenderer from "./components/public/PublicPageRenderer";
-
+import PublicApp from "./components/public/PublicApp";
 import OfficinaWorkspace from "./components/OfficinaWorkspace";
 
 export default function App() {
@@ -39,13 +25,7 @@ export default function App() {
   const [authError, setAuthError] = useState<string | null>(null);
   const [isAuthenticating, setIsAuthenticating] = useState<boolean>(false);
 
-  // Search Modal & Detail Modal
-  const [searchModalOpen, setSearchModalOpen] = useState<boolean>(false);
-  const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null);
-  const [selectedJournal, setSelectedJournal] = useState<JournalEntry | null>(null);
-  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
-
-  // Detect route path
+  // Sync client-side SPA route with location path
   useEffect(() => {
     const handleLocationCheck = () => {
       const path = window.location.pathname;
@@ -53,6 +33,12 @@ export default function App() {
         setIsOfficinaMode(true);
       } else {
         setIsOfficinaMode(false);
+        const cleanPath = path.replace(/^\//, "");
+        if (cleanPath) {
+          setCurrentTab(cleanPath);
+        } else {
+          setCurrentTab("home");
+        }
       }
     };
 
@@ -61,80 +47,62 @@ export default function App() {
     return () => window.removeEventListener("popstate", handleLocationCheck);
   }, []);
 
-  // Fetch from Express API
-  const fetchArchiveData = async () => {
-    try {
-      const [photosRes, journalsRes, projectsRes, dailyRes, pagesRes, heroRes] = await Promise.all([
-        fetch(`${API_URL}/api/photos`),
-        fetch(`${API_URL}/api/journals`),
-        fetch(`${API_URL}/api/projects`),
-        fetch(`${API_URL}/api/daily`),
-        fetch(`${API_URL}/api/pages`),
-        fetch(`${API_URL}/api/hero-config`)
-      ]);
+  // Fetch initial archive state from REST API
+  useEffect(() => {
+    let isMounted = true;
+    const loadArchiveData = async () => {
+      try {
+        const [photosData, journalsData, projectsData, dailyData, pagesData, heroData] =
+          await Promise.all([
+            apiService.getPhotos().catch(() => initialPhotos),
+            apiService.getJournals().catch(() => initialJournals),
+            apiService.getProjects().catch(() => initialProjects),
+            apiService.getDailyEntries().catch(() => initialDailyEntries),
+            apiService.getPages().catch(() => initialPages),
+            apiService.getHeroConfig().catch(() => initialHeroConfig)
+          ]);
 
-      if (photosRes.ok) {
-        const photosData = await photosRes.json();
-        console.log(`[Frontend Origin Audit] API_URL: "${API_URL}"`);
-        console.log(`[Frontend Origin Audit] window.location.origin: "${window.location.origin}"`);
-        console.log(`[Frontend Origin Audit] Returned /api/photos URLs:`, photosData.map((p: any) => ({
-          id: p.id,
-          originalUrl: p.originalUrl,
-          webPreviewUrl: p.webPreviewUrl,
-          thumbnailUrl: p.thumbnailUrl,
-          url: p.url
-        })));
-        if (photosData.length > 0) setPhotos(photosData);
-      }
-      if (journalsRes.ok) {
-        const journalsData = await journalsRes.json();
-        if (journalsData.length > 0) setJournals(journalsData);
-      }
-      if (projectsRes.ok) {
-        const projectsData = await projectsRes.json();
-        if (projectsData.length > 0) setProjects(projectsData);
-      }
-      if (dailyRes.ok) {
-        const dailyData = await dailyRes.json();
-        if (dailyData.length > 0) setDailyEntries(dailyData);
-      }
-      if (pagesRes.ok) {
-        const pagesData = await pagesRes.json();
-        if (Array.isArray(pagesData) && pagesData.length > 0) setPages(pagesData);
-      }
-      if (heroRes.ok) {
-        const heroData = await heroRes.json();
+        if (!isMounted) return;
+
+        if (photosData && photosData.length > 0) setPhotos(photosData);
+        if (journalsData && journalsData.length > 0) setJournals(journalsData);
+        if (projectsData && projectsData.length > 0) setProjects(projectsData);
+        if (dailyData && dailyData.length > 0) setDailyEntries(dailyData);
+        if (pagesData && Array.isArray(pagesData) && pagesData.length > 0) setPages(pagesData);
         if (heroData && heroData.sourceType) setHeroConfig(heroData);
+      } catch (error) {
+        console.warn("Operating with local static memory fallback.", error);
       }
-    } catch (error) {
-      console.warn("Operating with local static memory fallback.", error);
+    };
+
+    loadArchiveData();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const handleTabChange = (tab: string) => {
+    setCurrentTab(tab);
+    const newPath = tab === "home" ? "/" : `/${tab}`;
+    if (window.location.pathname !== newPath) {
+      window.history.pushState({}, "", newPath);
     }
   };
-
-  useEffect(() => {
-    fetchArchiveData();
-  }, []);
 
   const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsAuthenticating(true);
     setAuthError(null);
     try {
-      const cleanInput = passcodeInput.trim();
-      const res = await fetch(`${API_URL}/api/officina/auth`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ passcode: cleanInput })
-      });
-      if (res.ok) {
-        const data = await res.json();
-        sessionStorage.setItem("officina_token", data.token);
-        setAuthToken(data.token);
+      const res = await apiService.authenticatePasscode(passcodeInput.trim());
+      if (res.success && res.token) {
+        sessionStorage.setItem("officina_token", res.token);
+        setAuthToken(res.token);
       } else {
         setAuthError("Invalid credentials.");
       }
-    } catch (err) {
-      setAuthError("Failed to reach authentication server.");
+    } catch (err: any) {
+      setAuthError(err.message || "Failed to reach authentication server.");
     } finally {
       setIsAuthenticating(false);
     }
@@ -142,7 +110,9 @@ export default function App() {
 
   const openOfficina = () => {
     setIsOfficinaMode(true);
-    window.history.pushState({}, "", "/officina");
+    if (!window.location.pathname.startsWith("/officina")) {
+      window.history.pushState({}, "", "/officina");
+    }
   };
 
   if (isOfficinaMode) {
@@ -151,7 +121,7 @@ export default function App() {
         {!authToken ? (
           /* AUTH GATE */
           <div className="flex-1 flex items-center justify-center px-6 py-12">
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
@@ -212,12 +182,12 @@ export default function App() {
               </form>
 
               <div className="border-t border-neutral-800/60 pt-4 flex justify-between items-center text-[10px] font-mono text-neutral-500">
-                <button 
+                <button
                   onClick={() => {
                     setIsOfficinaMode(false);
                     window.history.pushState({}, "", "/");
                     setCurrentTab("home");
-                  }} 
+                  }}
                   className="hover:text-neutral-300 transition-colors cursor-pointer"
                 >
                   ← Return to Public Archive
@@ -253,186 +223,16 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0d0d0d] text-neutral-200 selection:bg-neutral-800 selection:text-white flex flex-col font-sans">
-      {/* Public Navigation Header */}
-      <PublicHeader
-        currentTab={currentTab}
-        setCurrentTab={setCurrentTab}
-        onOpenSearch={() => setSearchModalOpen(true)}
-        onOpenOfficina={openOfficina}
-      />
-
-      {/* Main Content Area */}
-      <main className="flex-1 w-full max-w-7xl mx-auto px-4 md:px-8 py-8 md:py-12">
-        <AnimatePresence mode="wait">
-          {(() => {
-            const matchedPage = pages.find((p) => p.slug === currentTab || p.id === currentTab);
-            if (matchedPage && matchedPage.status === "published" && matchedPage.components.length > 0) {
-              return (
-                <div key={matchedPage.id}>
-                  <PublicPageRenderer
-                    page={matchedPage}
-                    heroConfig={heroConfig}
-                    photos={photos}
-                    journals={journals}
-                    projects={projects}
-                    dailyEntries={dailyEntries}
-                    setCurrentTab={setCurrentTab}
-                    onSelectPhoto={(p) => setSelectedPhoto(p)}
-                    onSelectJournal={(j) => setSelectedJournal(j)}
-                    onSelectProject={(pr) => setSelectedProject(pr)}
-                  />
-                </div>
-              );
-            }
-
-            if (currentTab === "home") {
-              return (
-                <div key="home">
-                  <PublicHomeView
-                    photos={photos}
-                    journals={journals}
-                    projects={projects}
-                    dailyEntries={dailyEntries}
-                    setCurrentTab={setCurrentTab}
-                    onSelectPhoto={(p) => setSelectedPhoto(p)}
-                    onSelectJournal={(j) => setSelectedJournal(j)}
-                    onSelectProject={(pr) => setSelectedProject(pr)}
-                  />
-                </div>
-              );
-            }
-
-            if (currentTab === "journal") {
-              return (
-                <div key="journal">
-                  <PublicJournalView
-                    journals={journals}
-                    photos={photos}
-                    projects={projects}
-                    onSelectJournal={(j) => setSelectedJournal(j)}
-                    onSelectPhoto={(p) => setSelectedPhoto(p)}
-                    onSelectProject={(pr) => setSelectedProject(pr)}
-                  />
-                </div>
-              );
-            }
-
-            if (currentTab === "workshop") {
-              return (
-                <div key="workshop">
-                  <PublicWorkshopView
-                    projects={projects}
-                    photos={photos}
-                    journals={journals}
-                    onSelectProject={(pr) => setSelectedProject(pr)}
-                    onSelectPhoto={(p) => setSelectedPhoto(p)}
-                    onSelectJournal={(j) => setSelectedJournal(j)}
-                  />
-                </div>
-              );
-            }
-
-            if (currentTab === "galleria") {
-              return (
-                <div key="galleria">
-                  <PublicGalleriaView
-                    photos={photos}
-                    journals={journals}
-                    projects={projects}
-                    onSelectPhoto={(p) => setSelectedPhoto(p)}
-                    onSelectJournal={(j) => setSelectedJournal(j)}
-                    onSelectProject={(pr) => setSelectedProject(pr)}
-                  />
-                </div>
-              );
-            }
-
-            if (currentTab === "daily") {
-              return (
-                <div key="daily">
-                  <PublicDailyView
-                    dailyEntries={dailyEntries}
-                  />
-                </div>
-              );
-            }
-
-            if (currentTab === "map") {
-              return (
-                <div key="map">
-                  <PublicMapView
-                    photos={photos}
-                    journals={journals}
-                    projects={projects}
-                    onSelectPhoto={(p) => setSelectedPhoto(p)}
-                    onSelectJournal={(j) => setSelectedJournal(j)}
-                    onSelectProject={(pr) => setSelectedProject(pr)}
-                  />
-                </div>
-              );
-            }
-
-            if (currentTab === "timeline") {
-              return (
-                <div key="timeline">
-                  <PublicTimelineView
-                    photos={photos}
-                    journals={journals}
-                    projects={projects}
-                    onSelectPhoto={(p) => setSelectedPhoto(p)}
-                    onSelectJournal={(j) => setSelectedJournal(j)}
-                    onSelectProject={(pr) => setSelectedProject(pr)}
-                  />
-                </div>
-              );
-            }
-
-            if (currentTab === "about") {
-              return <div key="about"><PublicAboutView /></div>;
-            }
-
-            return <div key="404"><Public404View onReturnHome={() => setCurrentTab("home")} /></div>;
-          })()}
-        </AnimatePresence>
-      </main>
-
-      {/* Global Search Modal */}
-      <PublicSearchModal
-        isOpen={searchModalOpen}
-        onClose={() => setSearchModalOpen(false)}
-        photos={photos}
-        journals={journals}
-        projects={projects}
-        dailyEntries={dailyEntries}
-        onSelectPhoto={(p) => setSelectedPhoto(p)}
-        onSelectJournal={(j) => setSelectedJournal(j)}
-        onSelectProject={(pr) => setSelectedProject(pr)}
-      />
-
-      {/* Detail Modal */}
-      <PublicDetailModal
-        photo={selectedPhoto}
-        journal={selectedJournal}
-        project={selectedProject}
-        onClose={() => {
-          setSelectedPhoto(null);
-          setSelectedJournal(null);
-          setSelectedProject(null);
-        }}
-        onSelectPhoto={(p) => setSelectedPhoto(p)}
-        onSelectJournal={(j) => setSelectedJournal(j)}
-        onSelectProject={(pr) => setSelectedProject(pr)}
-        allPhotos={photos}
-        allJournals={journals}
-        allProjects={projects}
-      />
-
-      {/* Editorial Footer */}
-      <PublicFooter
-        setCurrentTab={setCurrentTab}
-        onOpenOfficina={openOfficina}
-      />
-    </div>
+    <PublicApp
+      currentTab={currentTab}
+      setCurrentTab={handleTabChange}
+      photos={photos}
+      journals={journals}
+      projects={projects}
+      dailyEntries={dailyEntries}
+      pages={pages}
+      heroConfig={heroConfig}
+      onOpenOfficina={openOfficina}
+    />
   );
 }
