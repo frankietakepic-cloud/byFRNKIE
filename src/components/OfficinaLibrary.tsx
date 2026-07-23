@@ -335,6 +335,12 @@ export default function OfficinaLibrary({
                 purple: "bg-purple-500"
               };
 
+              const assignedSrc = photo.thumbnailUrl || photo.webPreviewUrl || photo.originalUrl || photo.url;
+
+              // Step 1: Print complete photo object from array before rendering
+              console.log(`[OfficinaLibrary RAW PHOTO DATA] photo.id=${photo.id}`);
+              console.log(JSON.stringify(photo, null, 2));
+
               return (
                 <div
                   key={photo.id}
@@ -358,19 +364,47 @@ export default function OfficinaLibrary({
                   {/* Thumbnail Image Container */}
                   <div className="relative aspect-4/3 bg-neutral-950 overflow-hidden">
                     <img
-                      src={photo.thumbnailUrl || photo.webPreviewUrl || photo.originalUrl || photo.url}
+                      src={assignedSrc}
                       alt={photo.title || "Archive photo"}
                       data-id={photo.id}
                       className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                       loading="lazy"
+                      onLoad={(e) => {
+                        const img = e.currentTarget;
+                        console.log(`[OfficinaLibrary Image onLoad]`, {
+                          photoId: photo.id,
+                          thumbnailUrl: photo.thumbnailUrl,
+                          webPreviewUrl: photo.webPreviewUrl,
+                          originalUrl: photo.originalUrl,
+                          currentSrc: img.src,
+                          onLoadFired: true,
+                          onErrorFired: false,
+                          naturalWidth: img.naturalWidth,
+                          naturalHeight: img.naturalHeight,
+                          complete: img.complete
+                        });
+                      }}
                       onError={(e) => {
-                        const target = e.currentTarget;
+                        const img = e.currentTarget;
+                        console.error(`[OfficinaLibrary Image onError]`, {
+                          photoId: photo.id,
+                          thumbnailUrl: photo.thumbnailUrl,
+                          webPreviewUrl: photo.webPreviewUrl,
+                          originalUrl: photo.originalUrl,
+                          currentSrc: img.src,
+                          onLoadFired: false,
+                          onErrorFired: true,
+                          naturalWidth: img.naturalWidth,
+                          naturalHeight: img.naturalHeight,
+                          complete: img.complete
+                        });
+
                         const fallback1 = photo.webPreviewUrl || photo.originalUrl || photo.url;
                         const fallback2 = photo.originalUrl || photo.url;
-                        if (!target.src.endsWith(fallback1)) {
-                          target.src = fallback1;
-                        } else if (!target.src.endsWith(fallback2)) {
-                          target.src = fallback2;
+                        if (!img.src.endsWith(fallback1)) {
+                          img.src = fallback1;
+                        } else if (!img.src.endsWith(fallback2)) {
+                          img.src = fallback2;
                         }
                       }}
                     />

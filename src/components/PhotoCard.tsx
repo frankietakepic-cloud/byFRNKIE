@@ -54,7 +54,37 @@ export default function PhotoCard({ photo, onClick }: PhotoCardProps) {
           alt={photo.title}
           data-id={photo.id}
           referrerPolicy="no-referrer"
-          onError={handleImgError}
+          onLoad={(e) => {
+            const img = e.currentTarget;
+            console.log(`[PhotoCard Image onLoad]`, {
+              photoId: photo.id,
+              thumbnailUrl: photo.thumbnailUrl,
+              webPreviewUrl: photo.webPreviewUrl,
+              originalUrl: photo.originalUrl,
+              currentSrc: img.src,
+              onLoadFired: true,
+              onErrorFired: false,
+              naturalWidth: img.naturalWidth,
+              naturalHeight: img.naturalHeight,
+              complete: img.complete
+            });
+          }}
+          onError={(e) => {
+            const img = e.currentTarget;
+            console.error(`[PhotoCard Image onError]`, {
+              photoId: photo.id,
+              thumbnailUrl: photo.thumbnailUrl,
+              webPreviewUrl: photo.webPreviewUrl,
+              originalUrl: photo.originalUrl,
+              currentSrc: img.src,
+              onLoadFired: false,
+              onErrorFired: true,
+              naturalWidth: img.naturalWidth,
+              naturalHeight: img.naturalHeight,
+              complete: img.complete
+            });
+            handleImgError();
+          }}
           className="object-cover w-full h-full grayscale-[15%] group-hover:grayscale-0 group-hover:scale-[1.015] transition-all duration-1000 ease-[0.16, 1, 0.3, 1]"
         />
       </div>

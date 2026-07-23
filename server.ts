@@ -326,10 +326,16 @@ async function startServer() {
 
   app.use(cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (like same-origin, curl) or from allowed production/dev origins
+      console.log("========== CORS ==========");
+      console.log("Origin:", origin);
+      console.log("APP_URL:", process.env.APP_URL);
+      console.log("NODE_ENV:", process.env.NODE_ENV);
+
       if (!origin || allowedOrigins.includes(origin) || process.env.NODE_ENV !== "production") {
+        console.log("✅ CORS ALLOWED");
         callback(null, true);
       } else {
+        console.log("❌ CORS BLOCKED:", origin);
         callback(new Error("Not allowed by CORS"));
       }
     },
@@ -1021,6 +1027,12 @@ async function startServer() {
       console.warn(`  Reason: File does not exist on disk at ${resolvedPath}. Express static will return 404.`);
     }
 
+    next();
+  });
+
+  app.use("/uploads", (req, res, next) => {
+    console.log("========== IMAGE REQUEST ==========");
+    console.log("URL:", req.originalUrl);
     next();
   });
 
